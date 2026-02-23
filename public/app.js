@@ -16,6 +16,7 @@ const overviewView = document.getElementById("overviewView");
 const hedgeView = document.getElementById("hedgeView");
 const betaView = document.getElementById("betaView");
 const hedgeTableWrap = document.getElementById("hedgeTableWrap");
+const hedgeQuickWrap = document.getElementById("hedgeQuickWrap");
 const betaPair = document.getElementById("betaPair");
 const betaBenchmark = document.getElementById("betaBenchmark");
 const betaLookback = document.getElementById("betaLookback");
@@ -104,6 +105,115 @@ function hedgeActionText(adjustmentUsd, signalLabel) {
   if (Math.abs(adjustmentUsd) < 10) return "Rebalance (small)";
   if (adjustmentUsd < 0) return `Increase short by ${fmtUsd(Math.abs(adjustmentUsd))}`;
   return `Decrease short by ${fmtUsd(Math.abs(adjustmentUsd))}`;
+}
+
+function computeHedgeRows(summary, fullPositions) {
+  const strategyValuations = summary?.kaminoLiquidity?.strategyValuations ?? [];
+  const valuationByPair = new Map(strategyValuations.map((v) => [String(v?.pairLabel || "").toUpperCase(), v]));
+  const leverageElement = (fullPositions?.jupiterPerps?.data?.raw?.elements ?? []).find((e) => e?.type === "leverage");
+  const perpsPositions = leverageElement?.data?.isolated?.positions ?? [];
+
+  const perpsBySymbol = new Map();
+  for (const p of perpsPositions) {
+    const symbol = inferPerpSymbol(String(p?.address || ""));
+    const side = String(p?.side || "").toLowerCase();
+    const notional = Math.abs(Number(p?.sizeValue || 0));
+    const deltaUsd = side === "short" ? -notional : notional;
+    const prev = perpsBySymbol.get(symbol) ?? { notionalUsd: 0, deltaUsd: 0, side };
+    prev.notionalUsd += notional;
+    prev.deltaUsd += deltaUsd;
+    prev.side = side || prev.side;
+    perpsBySymbol.set(symbol, prev);
+  }
+
+  function estimateLpVolatileDeltaUsd(valuation) {
+    const a = String(valuation?.tokenASymbol || "").toUpperCase();
+    const b = String(valuation?.tokenBSymbol || "").toUpperCase();
+    const stable = new Set(["USDC", "USDG", "USDS"]);
+    const tokenAValueExact = Number(valuation?.tokenAValueUsdFarmsStaked ?? NaN);
+    const tokenBValueExact = Number(valuation?.tokenBValueUsdFarmsStaked ?? NaN);
+    if (stable.has(a) && !stable.has(b) && Number.isFinite(tokenBValueExact)) return { token: b, deltaUsd: tokenBValueExact, method: "exact" };
+    if (stable.has(b) && !stable.has(a) && Number.isFinite(tokenAValueExact)) return { token: a, deltaUsd: tokenAValueExact, method: "exact" };
+    const pairValue = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? 0);
+    const est = pairValue * 0.5;
+    if (stable.has(a) && !stable.has(b)) return { token: b, deltaUsd: est, method: "fallback-50" };
+    if (stable.has(b) && !stable.has(a)) return { token: a, deltaUsd: est, method: "fallback-50" };
+    return { token: a || b || "unknown", deltaUsd: est, method: "fallback-50" };
+  }
+
+  return HEDGE_LINKS.map((link) => {
+    const valuation = valuationByPair.get(link.lpPair.toUpperCase());
+    const lpValueUsd = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? NaN);
+    const lpDelta = valuation ? estimateLpVolatileDeltaUsd(valuation) : { token: "n/a", deltaUsd: NaN };
+    const beta = Number(BETA_OVERRIDES[link.strategyLabel] ?? 1);
+    const betaAdjustedLpDeltaUsd = Number.isFinite(lpDelta.deltaUsd) ? lpDelta.deltaUsd * beta : NaN;
+    const perp = perpsBySymbol.get(link.perpSymbol) ?? { notionalUsd: NaN, deltaUsd: NaN, side: "n/a" };
+    const targetPerpDeltaUsd = Number.isFinite(betaAdjustedLpDeltaUsd) ? -betaAdjustedLpDeltaUsd : NaN;
+    const adjustmentUsd = Number.isFinite(targetPerpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? targetPerpDeltaUsd - perp.deltaUsd : NaN;
+    const netDeltaUsd =
+      Number.isFinite(betaAdjustedLpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? betaAdjustedLpDeltaUsd + perp.deltaUsd : NaN;
+    const hedgeRatio =
+      Number.isFinite(betaAdjustedLpDeltaUsd) && betaAdjustedLpDeltaUsd > 0 && Number.isFinite(perp.deltaUsd)
+        ? Math.abs(perp.deltaUsd) / betaAdjustedLpDeltaUsd
+        : NaN;
+    const driftPct =
+      Number.isFinite(betaAdjustedLpDeltaUsd) && betaAdjustedLpDeltaUsd > 0 && Number.isFinite(netDeltaUsd)
+        ? (netDeltaUsd / betaAdjustedLpDeltaUsd) * 100
+        : NaN;
+
+    return {
+      ...link,
+      lpToken: lpDelta.token,
+      lpDeltaMethod: lpDelta.method,
+      beta,
+      lpValueUsd,
+      lpDeltaUsd: lpDelta.deltaUsd,
+      betaAdjustedLpDeltaUsd,
+      perpSide: perp.side,
+      perpNotionalUsd: perp.notionalUsd,
+      perpDeltaUsd: perp.deltaUsd,
+      targetPerpDeltaUsd,
+      adjustmentUsd,
+      netDeltaUsd,
+      hedgeRatio,
+      driftPct
+    };
+  });
+}
+
+function renderHedgeQuick(summary, fullPositions) {
+  if (!hedgeQuickWrap) return;
+  const rows = computeHedgeRows(summary, fullPositions);
+  if (!rows.length) {
+    hedgeQuickWrap.innerHTML = `<div class="rewards-empty">No hedge strategies found.</div>`;
+    return;
+  }
+  hedgeQuickWrap.innerHTML = `
+    <table class="summary-table hedge-quick-table">
+      <thead>
+        <tr>
+          <th>Strategy</th>
+          <th>Drift</th>
+          <th>Rebalance Signal</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map((row) => {
+            const signal = hedgeSignal(row.driftPct, row.hedgeRatio);
+            const driftClass = Number.isFinite(row.driftPct) ? (Math.abs(row.driftPct) <= 10 ? "pnl-pos" : "pnl-neg") : "";
+            return `
+              <tr>
+                <td>${row.strategyLabel}</td>
+                <td class="${driftClass}">${fmtPct(row.driftPct)}</td>
+                <td class="${signal.className}">${signal.label}</td>
+              </tr>
+            `;
+          })
+          .join("")}
+      </tbody>
+    </table>
+  `;
 }
 
 function setTab(tab) {
@@ -569,77 +679,7 @@ async function loadBeta() {
 }
 
 function renderHedge(summary, fullPositions) {
-  const strategyValuations = summary?.kaminoLiquidity?.strategyValuations ?? [];
-  const valuationByPair = new Map(strategyValuations.map((v) => [String(v?.pairLabel || "").toUpperCase(), v]));
-  const leverageElement = (fullPositions?.jupiterPerps?.data?.raw?.elements ?? []).find((e) => e?.type === "leverage");
-  const perpsPositions = leverageElement?.data?.isolated?.positions ?? [];
-
-  const perpsBySymbol = new Map();
-  for (const p of perpsPositions) {
-    const symbol = inferPerpSymbol(String(p?.address || ""));
-    const side = String(p?.side || "").toLowerCase();
-    const notional = Math.abs(Number(p?.sizeValue || 0));
-    const deltaUsd = side === "short" ? -notional : notional;
-    const prev = perpsBySymbol.get(symbol) ?? { notionalUsd: 0, deltaUsd: 0, side };
-    prev.notionalUsd += notional;
-    prev.deltaUsd += deltaUsd;
-    prev.side = side || prev.side;
-    perpsBySymbol.set(symbol, prev);
-  }
-
-  function estimateLpVolatileDeltaUsd(valuation) {
-    const a = String(valuation?.tokenASymbol || "").toUpperCase();
-    const b = String(valuation?.tokenBSymbol || "").toUpperCase();
-    const stable = new Set(["USDC", "USDG", "USDS"]);
-    const tokenAValueExact = Number(valuation?.tokenAValueUsdFarmsStaked ?? NaN);
-    const tokenBValueExact = Number(valuation?.tokenBValueUsdFarmsStaked ?? NaN);
-    if (stable.has(a) && !stable.has(b) && Number.isFinite(tokenBValueExact)) return { token: b, deltaUsd: tokenBValueExact, method: "exact" };
-    if (stable.has(b) && !stable.has(a) && Number.isFinite(tokenAValueExact)) return { token: a, deltaUsd: tokenAValueExact, method: "exact" };
-    const pairValue = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? 0);
-    const est = pairValue * 0.5;
-    if (stable.has(a) && !stable.has(b)) return { token: b, deltaUsd: est, method: "fallback-50" };
-    if (stable.has(b) && !stable.has(a)) return { token: a, deltaUsd: est, method: "fallback-50" };
-    return { token: a || b || "unknown", deltaUsd: est, method: "fallback-50" };
-  }
-
-  const rows = HEDGE_LINKS.map((link) => {
-    const valuation = valuationByPair.get(link.lpPair.toUpperCase());
-    const lpValueUsd = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? NaN);
-    const lpDelta = valuation ? estimateLpVolatileDeltaUsd(valuation) : { token: "n/a", deltaUsd: NaN };
-    const beta = Number(BETA_OVERRIDES[link.strategyLabel] ?? 1);
-    const betaAdjustedLpDeltaUsd = Number.isFinite(lpDelta.deltaUsd) ? lpDelta.deltaUsd * beta : NaN;
-    const perp = perpsBySymbol.get(link.perpSymbol) ?? { notionalUsd: NaN, deltaUsd: NaN, side: "n/a" };
-    const targetPerpDeltaUsd = Number.isFinite(betaAdjustedLpDeltaUsd) ? -betaAdjustedLpDeltaUsd : NaN;
-    const adjustmentUsd = Number.isFinite(targetPerpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? targetPerpDeltaUsd - perp.deltaUsd : NaN;
-    const netDeltaUsd =
-      Number.isFinite(betaAdjustedLpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? betaAdjustedLpDeltaUsd + perp.deltaUsd : NaN;
-    const hedgeRatio =
-      Number.isFinite(betaAdjustedLpDeltaUsd) && betaAdjustedLpDeltaUsd > 0 && Number.isFinite(perp.deltaUsd)
-        ? Math.abs(perp.deltaUsd) / betaAdjustedLpDeltaUsd
-        : NaN;
-    const driftPct =
-      Number.isFinite(betaAdjustedLpDeltaUsd) && betaAdjustedLpDeltaUsd > 0 && Number.isFinite(netDeltaUsd)
-        ? (netDeltaUsd / betaAdjustedLpDeltaUsd) * 100
-        : NaN;
-
-    return {
-      ...link,
-      lpToken: lpDelta.token,
-      lpDeltaMethod: lpDelta.method,
-      beta,
-      lpValueUsd,
-      lpDeltaUsd: lpDelta.deltaUsd,
-      betaAdjustedLpDeltaUsd,
-      perpSide: perp.side,
-      perpNotionalUsd: perp.notionalUsd,
-      perpDeltaUsd: perp.deltaUsd,
-      targetPerpDeltaUsd,
-      adjustmentUsd,
-      netDeltaUsd,
-      hedgeRatio,
-      driftPct
-    };
-  });
+  const rows = computeHedgeRows(summary, fullPositions);
 
   hedgeTableWrap.innerHTML = `
     <table class="summary-table">
@@ -694,6 +734,7 @@ function renderHedge(summary, fullPositions) {
 }
 
 function render(summary, fullPositions) {
+  renderHedgeQuick(summary, fullPositions);
   const perpsPnl = Number(summary?.jupiterPerps?.summary?.pnlUsd ?? 0);
   const liqPnl = Number(summary?.kaminoLiquidity?.pnlUsd ?? 0);
   const liqPnlFarms = Number(summary?.kaminoLiquidity?.pnlUsdFarmsStaked ?? 0);

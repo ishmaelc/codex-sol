@@ -91,6 +91,25 @@ body {
   color: var(--muted);
 }
 
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.section-subtle {
+  color: var(--muted-2);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .card {
   margin-top: 16px;
   background: linear-gradient(180deg, rgba(17, 26, 43, 0.96), rgba(13, 20, 34, 0.96));
@@ -402,6 +421,27 @@ button:hover {
   font-weight: 700;
 }
 
+.hedge-quick-card {
+  margin-top: 16px;
+}
+
+.hedge-quick-table {
+  font-size: 0.88rem;
+}
+
+.hedge-quick-table th,
+.hedge-quick-table td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.hedge-quick-table td:nth-child(2),
+.hedge-quick-table th:nth-child(2),
+.hedge-quick-table td:nth-child(3),
+.hedge-quick-table th:nth-child(3) {
+  text-align: right;
+}
+
 .rewards-table {
   width: 100%;
   border-collapse: collapse;
@@ -566,6 +606,16 @@ button:hover {
     width: 100%;
     flex-wrap: wrap;
     padding: 8px;
+  }
+
+  .section-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .hedge-quick-table {
+    font-size: 0.84rem;
   }
 
   .tab-btn {
