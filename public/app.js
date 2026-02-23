@@ -928,7 +928,10 @@ function render(summary, fullPositions) {
           <td class="${Number(s.rewardsApyPct ?? 0) >= 0 ? "pnl-pos" : "pnl-neg"}">${fmtPct(s.rewardsApyPct)}</td>
           <td>
             ${fmtUsd(rewardsTotalUsd)}
-            <br/><span class="mono">claimed ${fmtUsd(rewardsClaimedUsd)} | unclaimed ${fmtUsd(rewardsUnclaimedUsd)}</span>
+            <details class="inline-details">
+              <summary>Details</summary>
+              <span class="mono">claimed ${fmtUsd(rewardsClaimedUsd)} | unclaimed ${fmtUsd(rewardsUnclaimedUsd)}</span>
+            </details>
           </td>
           <td class="${Number(s.totalApyPct ?? 0) >= 0 ? "pnl-pos" : "pnl-neg"}">${fmtPct(s.totalApyPct)}</td>
         </tr>
@@ -1030,11 +1033,11 @@ function render(summary, fullPositions) {
         </div>
       </details>
       <details class="collapse-card">
-        <summary>Wallet Holdings (priced) <span>${fmtUsd(walletSpotKnownUsd)}</span></summary>
+        <summary>Wallet Holdings <span>${fmtUsd(walletSpotKnownUsd)}</span></summary>
         <div class="rewards-wrap">
           <table class="rewards-table">
             <thead>
-              <tr><th>Token</th><th>Amount</th><th>Value</th><th>Mint</th></tr>
+              <tr><th>Token</th><th>Amount</th><th>Value</th></tr>
             </thead>
             <tbody>
             ${[
@@ -1062,7 +1065,6 @@ function render(summary, fullPositions) {
                 <td>${r.name}</td>
                 <td>${fmtTokenAmount(r.amountUi)}</td>
                 <td>${fmtUsd(r.valueUsd)}</td>
-                <td>${r.mint}</td>
               </tr>
             `
               )
@@ -1156,7 +1158,6 @@ function render(summary, fullPositions) {
           <th>Token</th>
           <th>Amount</th>
           <th>Value</th>
-          <th>Mint</th>
         </tr>
       </thead>
       <tbody>
@@ -1169,14 +1170,13 @@ function render(summary, fullPositions) {
                   <td>${row.name}</td>
                   <td>${fmtTokenAmount(row.amountUi)}</td>
                   <td>${fmtUsd(row.valueUsd)}</td>
-                  <td>${row.mint}</td>
                 </tr>
               `
                 )
                 .join("")
             : `
                 <tr>
-                  <td colspan="4" class="rewards-empty">No priced wallet tokens found.</td>
+                  <td colspan="3" class="rewards-empty">No priced wallet tokens found.</td>
                 </tr>
               `
         }
@@ -1184,7 +1184,6 @@ function render(summary, fullPositions) {
           <td></td>
           <td>Total USD</td>
           <td>${fmtUsd(pricedWalletTotalUsd)}</td>
-          <td></td>
         </tr>
       </tbody>
     </table>
@@ -1198,7 +1197,6 @@ function render(summary, fullPositions) {
           <th>Type</th>
           <th>Source</th>
           <th>Details</th>
-          <th>Mint</th>
         </tr>
       </thead>
       <tbody>
@@ -1213,14 +1211,13 @@ function render(summary, fullPositions) {
                   <td>${row.tokenType ?? "Known"}</td>
                   <td>${row.source ?? "n/a"}</td>
                   <td>${row.details ?? "n/a"}</td>
-                  <td>${row.mint}</td>
                 </tr>
               `
                 )
                 .join("")
             : `
                 <tr>
-                  <td colspan="6" class="rewards-empty">No unpriced wallet tokens.</td>
+                  <td colspan="5" class="rewards-empty">No unpriced wallet tokens.</td>
                 </tr>
               `
         }

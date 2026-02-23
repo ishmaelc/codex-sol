@@ -457,6 +457,25 @@ button:hover {
   color: var(--muted);
 }
 
+.inline-details {
+  margin-top: 2px;
+}
+
+.inline-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.78rem;
+  list-style: none;
+}
+
+.inline-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.inline-details[open] > summary {
+  margin-bottom: 2px;
+}
+
 .collapse-grid {
   margin-top: 14px;
   display: grid;
