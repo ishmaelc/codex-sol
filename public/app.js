@@ -6,12 +6,16 @@ const statusEl = document.getElementById("status");
 const updatedAt = document.getElementById("updatedAt");
 const summaryCards = document.getElementById("summaryCards");
 const deltaMeta = document.getElementById("deltaMeta");
+const driftStrategyList = document.getElementById("driftStrategyList");
 const driftPctLabel = document.getElementById("driftPctLabel");
 const driftNeedle = document.getElementById("driftNeedle");
 const liquidityTableWrap = document.getElementById("liquidityTableWrap");
 const hedgeTableWrap = document.getElementById("hedgeTableWrap");
+const hedgeCoverage = document.getElementById("hedgeCoverage");
 const multiplyTableWrap = document.getElementById("multiplyTableWrap");
 const rewardsSummary = document.getElementById("rewardsSummary");
+const debugStats = document.getElementById("debugStats");
+const debugObligationHints = document.getElementById("debugObligationHints");
 const walletTokensWrap = document.getElementById("walletTokensWrap");
 const rawJson = document.getElementById("rawJson");
 const rawFullJson = document.getElementById("rawFullJson");
@@ -25,6 +29,8 @@ let latestSummary = null;
 let latestFullPositions = null;
 let fullPositionsLoadPromise = null;
 
+const DASH = "—";
+
 const HEDGE_LINKS = [
   { strategyLabel: "NX8-USDC vs WBTC Short", lpPair: "NX8-USDC", perpSymbol: "WBTC" },
   { strategyLabel: "SOL-USDG vs SOL Short", lpPair: "SOL-USDG", perpSymbol: "SOL" }
@@ -35,22 +41,22 @@ const BETA_OVERRIDES = {
 };
 
 function fmtUsd(value) {
-  if (value == null || Number.isNaN(Number(value))) return "n/a";
+  if (value == null || Number.isNaN(Number(value))) return DASH;
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(value));
 }
 
 function fmtTokenAmount(value) {
-  if (value == null || Number.isNaN(Number(value))) return "n/a";
+  if (value == null || Number.isNaN(Number(value))) return DASH;
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(Number(value));
 }
 
 function fmtPct(value) {
-  if (value == null || Number.isNaN(Number(value))) return "n/a";
+  if (value == null || Number.isNaN(Number(value))) return DASH;
   return `${Number(value).toFixed(2)}%`;
 }
 
 function fmtSignedUsd(value) {
-  if (value == null || Number.isNaN(Number(value))) return "n/a";
+  if (value == null || Number.isNaN(Number(value))) return DASH;
   const n = Number(value);
   return `${n >= 0 ? "+" : ""}${fmtUsd(n)}`;
 }
@@ -70,7 +76,6 @@ function inferPerpSymbol(mint) {
   };
   return known[mint] ?? `${mint.slice(0, 4)}...${mint.slice(-4)}`;
 }
-
 
 function estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol) {
   const amount = Number(row?.amountUi);
@@ -95,7 +100,7 @@ function estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol) {
 }
 
 function hedgeSignal(driftPct, hedgeRatio) {
-  if (!Number.isFinite(driftPct) || !Number.isFinite(hedgeRatio)) return { label: "n/a", className: "" };
+  if (!Number.isFinite(driftPct) || !Number.isFinite(hedgeRatio)) return { label: DASH, className: "" };
   const absDrift = Math.abs(driftPct);
   const ratioOff = Math.abs(1 - hedgeRatio);
   if (absDrift <= 10 && ratioOff <= 0.1) return { label: "OK", className: "pnl-pos" };
@@ -128,25 +133,20 @@ function computeHedgeRows(summary, fullPositions) {
     const stable = new Set(["USDC", "USDG", "USDS"]);
     const tokenAValueExact = Number(valuation?.tokenAValueUsdFarmsStaked ?? NaN);
     const tokenBValueExact = Number(valuation?.tokenBValueUsdFarmsStaked ?? NaN);
-    if (stable.has(a) && !stable.has(b) && Number.isFinite(tokenBValueExact)) return { token: b, deltaUsd: tokenBValueExact, method: "exact" };
-    if (stable.has(b) && !stable.has(a) && Number.isFinite(tokenAValueExact)) return { token: a, deltaUsd: tokenAValueExact, method: "exact" };
+    if (stable.has(a) && !stable.has(b) && Number.isFinite(tokenBValueExact)) return { token: b, deltaUsd: tokenBValueExact };
+    if (stable.has(b) && !stable.has(a) && Number.isFinite(tokenAValueExact)) return { token: a, deltaUsd: tokenAValueExact };
     const pairValue = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? 0);
-    const est = pairValue * 0.5;
-    if (stable.has(a) && !stable.has(b)) return { token: b, deltaUsd: est, method: "fallback-50" };
-    if (stable.has(b) && !stable.has(a)) return { token: a, deltaUsd: est, method: "fallback-50" };
-    return { token: a || b || "unknown", deltaUsd: est, method: "fallback-50" };
+    return { token: a || b || "unknown", deltaUsd: pairValue * 0.5 };
   }
 
   return HEDGE_LINKS.map((link) => {
     const valuation = valuationByPair.get(link.lpPair.toUpperCase());
     const lpValueUsd = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? NaN);
-    const lpDelta = valuation ? estimateLpVolatileDeltaUsd(valuation) : { token: "n/a", deltaUsd: NaN };
+    const lpDelta = valuation ? estimateLpVolatileDeltaUsd(valuation) : { token: DASH, deltaUsd: NaN };
     const beta = Number(BETA_OVERRIDES[link.strategyLabel] ?? 1);
     const betaAdjustedLpDeltaUsd = Number.isFinite(lpDelta.deltaUsd) ? lpDelta.deltaUsd * beta : NaN;
-    const perp = perpsBySymbol.get(link.perpSymbol) ?? { notionalUsd: NaN, deltaUsd: NaN, side: "n/a" };
-    const targetPerpDeltaUsd = Number.isFinite(betaAdjustedLpDeltaUsd) ? -betaAdjustedLpDeltaUsd : NaN;
-    const netDeltaUsd =
-      Number.isFinite(betaAdjustedLpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? betaAdjustedLpDeltaUsd + perp.deltaUsd : NaN;
+    const perp = perpsBySymbol.get(link.perpSymbol) ?? { notionalUsd: NaN, deltaUsd: NaN, side: DASH };
+    const netDeltaUsd = Number.isFinite(betaAdjustedLpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? betaAdjustedLpDeltaUsd + perp.deltaUsd : NaN;
     const hedgeRatio =
       Number.isFinite(betaAdjustedLpDeltaUsd) && betaAdjustedLpDeltaUsd > 0 && Number.isFinite(perp.deltaUsd)
         ? Math.abs(perp.deltaUsd) / betaAdjustedLpDeltaUsd
@@ -164,7 +164,6 @@ function computeHedgeRows(summary, fullPositions) {
       perpSide: perp.side,
       perpNotionalUsd: perp.notionalUsd,
       perpDeltaUsd: perp.deltaUsd,
-      targetPerpDeltaUsd,
       netDeltaUsd,
       hedgeRatio,
       driftPct
@@ -202,7 +201,6 @@ function renderSummaryStrip(summary) {
 
     const byMint = lendTokenPricesByMint.get(String(mint ?? ""));
     if (Number.isFinite(byMint) && byMint > 0) return byMint;
-
     const bySymbol = lendTokenPricesBySymbol.get(sym);
     if (Number.isFinite(bySymbol) && bySymbol > 0) return bySymbol;
 
@@ -236,127 +234,192 @@ function renderSummaryStrip(summary) {
       .filter((r) => Number(r.amountUi) > 0 && Number(r.amountUsd) > 0)
       .map((r) => [String(r.symbol ?? "").toUpperCase(), Number(r.amountUsd) / Number(r.amountUi)])
   );
+
   const estimatedClaimables = claimableByPosition.reduce((acc, row) => {
     const v = estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol);
     return acc + (Number.isFinite(Number(v)) ? Number(v) : 0);
   }, 0);
   const totalClaimables = Number.isFinite(claimableValueFromSummary) ? claimableValueFromSummary : estimatedClaimables;
+  const portfolioTotalUsd = positionsTotalUsd + walletUsd;
 
   summaryCards.innerHTML = [
-    { label: "Total Portfolio", value: fmtUsd(positionsTotalUsd + walletUsd) },
+    { label: "Total Portfolio", value: fmtUsd(portfolioTotalUsd) },
     { label: "Wallet Balance", value: fmtUsd(walletUsd) },
     { label: "Total Claimables", value: fmtUsd(totalClaimables) }
   ]
     .map((s) => `<article class="stat"><div class="label">${s.label}</div><div class="value">${s.value}</div></article>`)
     .join("");
 
-  return { totalClaimables, walletUsd, claimableByPosition, strategyMap, claimedPriceBySymbol };
+  return { totalClaimables, walletUsd, portfolioTotalUsd, claimableByPosition, strategyMap, claimedPriceBySymbol };
 }
 
-function renderDelta(summary, fullPositions) {
+function renderDelta(summary, fullPositions, totals) {
   const rows = computeHedgeRows(summary, fullPositions);
   const worstDrift = rows.reduce((acc, r) => (Number.isFinite(r.driftPct) ? Math.max(acc, Math.abs(r.driftPct)) : acc), 0);
   const dominant = rows.find((r) => Number.isFinite(r.driftPct) && Math.abs(r.driftPct) === worstDrift);
-  const signal = dominant ? hedgeSignal(dominant.driftPct, dominant.hedgeRatio).label : "n/a";
+  const signal = dominant ? hedgeSignal(dominant.driftPct, dominant.hedgeRatio).label : DASH;
   const deltaCapital = rows.reduce((acc, row) => acc + (Number.isFinite(row.lpValueUsd) ? row.lpValueUsd : 0), 0);
+  const shareOfPortfolio = totals.portfolioTotalUsd > 0 ? (deltaCapital / totals.portfolioTotalUsd) * 100 : NaN;
+  const avgCoverage = rows
+    .map((r) => Number(r.hedgeRatio))
+    .filter((n) => Number.isFinite(n))
+    .reduce((acc, n, _, arr) => acc + n / arr.length, 0);
 
   deltaMeta.innerHTML = [
-    { label: "Delta Capital", value: fmtUsd(deltaCapital) },
+    { label: "Delta Capital (LP + Hedge)", value: fmtUsd(deltaCapital) },
+    { label: "Share of Portfolio", value: fmtPct(shareOfPortfolio) },
     { label: "Drift %", value: fmtPct(worstDrift) },
     { label: "Hedge Signal", value: signal }
   ]
     .map((s) => `<article class="stat"><div class="label">${s.label}</div><div class="value">${s.value}</div></article>`)
     .join("");
 
+  driftStrategyList.innerHTML = rows.length
+    ? rows
+        .map((r) => `<div class="drift-item"><span>${r.strategyLabel}</span><strong>${fmtPct(r.driftPct)}</strong></div>`)
+        .join("")
+    : `<div class="empty">No hedge strategies detected.</div>`;
+
   driftPctLabel.textContent = fmtPct(worstDrift);
-  const clamped = Math.min(20, Math.max(0, Number(worstDrift) || 0));
-  driftNeedle.style.left = `${(clamped / 20) * 100}%`;
+  const clamped = Math.min(12, Math.max(0, Number(worstDrift) || 0));
+  driftNeedle.style.left = `${(clamped / 12) * 100}%`;
+
+  hedgeCoverage.textContent = `Hedge Coverage: ${Number.isFinite(avgCoverage) ? `${avgCoverage.toFixed(2)}×` : DASH}`;
 
   const strategyValuations = summary?.kaminoLiquidity?.strategyValuations ?? [];
-  liquidityTableWrap.innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Pair</th><th>Value/TVL</th><th>Fees</th><th>Incentives</th><th>Net</th></tr></thead>
-      <tbody>
-        ${strategyValuations
-          .map((row) => {
-            const value = Number(row?.valueUsdFarmsStaked ?? row?.valueUsd ?? NaN);
-            const net = Number(row?.pnlUsdFarmsStaked ?? row?.pnlUsd ?? NaN);
-            return `<tr>
-              <td>${row?.pairLabel ?? "n/a"}</td>
-              <td>${fmtUsd(value)}</td>
-              <td>${fmtUsd(row?.feesAccruedUsd)}</td>
-              <td>${fmtUsd(row?.incentivesAccruedUsd)}</td>
-              <td class="${net >= 0 ? "pnl-pos" : "pnl-neg"}">${fmtSignedUsd(net)}</td>
-            </tr>`;
-          })
-          .join("")}
-      </tbody>
-    </table>`;
+  liquidityTableWrap.innerHTML = strategyValuations.length
+    ? `
+      <table class="data-table">
+        <thead><tr><th>Pair</th><th class="num">Value</th><th class="num">Fees</th><th class="num">Incentives</th><th class="num">Net</th></tr></thead>
+        <tbody>
+          ${strategyValuations
+            .map((row) => {
+              const value = Number(row?.valueUsdFarmsStaked ?? row?.valueUsd ?? NaN);
+              const net = Number(row?.pnlUsdFarmsStaked ?? row?.pnlUsd ?? NaN);
+              return `<tr>
+                <td>${row?.pairLabel ?? DASH}</td>
+                <td class="num">${fmtUsd(value)}</td>
+                <td class="num">${fmtUsd(row?.feesAccruedUsd)}</td>
+                <td class="num">${fmtUsd(row?.incentivesAccruedUsd)}</td>
+                <td class="num ${net >= 0 ? "pnl-pos" : "pnl-neg"}">${fmtSignedUsd(net)}</td>
+              </tr>`;
+            })
+            .join("")}
+        </tbody>
+      </table>`
+    : `<div class="empty">No liquidity positions found.</div>`;
 
   const leverageElement = (fullPositions?.jupiterPerps?.data?.raw?.elements ?? []).find((e) => e?.type === "leverage");
   const perpsPositions = leverageElement?.data?.isolated?.positions ?? [];
-  hedgeTableWrap.innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Market</th><th>Side</th><th>Notional</th><th>PnL</th><th>Funding</th></tr></thead>
-      <tbody>
-        ${
-          perpsPositions.length
-            ? perpsPositions
-                .map((p) => {
-                  const pnl = Number(p?.pnlValue ?? NaN);
-                  const funding = Number(p?.accruedFunding ?? p?.fundingPaid ?? NaN);
-                  return `<tr>
-                    <td>${inferPerpSymbol(String(p?.address || ""))}</td>
-                    <td>${String(p?.side || "n/a")}</td>
-                    <td>${fmtUsd(p?.sizeValue)}</td>
-                    <td class="${pnl >= 0 ? "pnl-pos" : "pnl-neg"}">${fmtSignedUsd(pnl)}</td>
-                    <td>${fmtUsd(funding)}</td>
-                  </tr>`;
-                })
-                .join("")
-            : '<tr><td colspan="5" class="muted">No perps positions found.</td></tr>'
-        }
-      </tbody>
-    </table>`;
+  hedgeTableWrap.innerHTML = perpsPositions.length
+    ? `
+      <table class="data-table">
+        <thead><tr><th>Market</th><th>Side</th><th class="num">Notional</th><th class="num">PnL</th><th class="num">Funding</th></tr></thead>
+        <tbody>
+          ${perpsPositions
+            .map((p) => {
+              const pnl = Number(p?.pnlValue ?? NaN);
+              const funding = Number(p?.accruedFunding ?? p?.fundingPaid ?? NaN);
+              return `<tr>
+                <td>${inferPerpSymbol(String(p?.address || ""))}</td>
+                <td>${String(p?.side || DASH)}</td>
+                <td class="num">${fmtUsd(p?.sizeValue)}</td>
+                <td class="num ${pnl >= 0 ? "pnl-pos" : "pnl-neg"}">${fmtSignedUsd(pnl)}</td>
+                <td class="num">${fmtUsd(funding)}</td>
+              </tr>`;
+            })
+            .join("")}
+        </tbody>
+      </table>`
+    : `<div class="empty">No perps positions found.</div>`;
+}
+
+function detectMultiplyObligations(obligations) {
+  return obligations.filter((ob) => {
+    const flags = [
+      ob?.positionType,
+      ob?.kind,
+      ob?.type,
+      ob?.category,
+      ob?.strategyType,
+      ob?.market,
+      ob?.subType,
+      ob?.label
+    ]
+      .map((v) => String(v ?? "").toLowerCase())
+      .join(" ");
+    const tags = Array.isArray(ob?.tags) ? ob.tags.map((t) => String(t).toLowerCase()) : [];
+
+    return (
+      Boolean(ob?.isMultiply) ||
+      flags.includes("multiply") ||
+      flags.includes("loop") ||
+      tags.includes("multiply") ||
+      tags.includes("loop") ||
+      tags.includes("leveraged")
+    );
+  });
 }
 
 function renderMultiply(summary) {
   const obligations = summary?.kaminoLend?.obligations ?? [];
-  const multiplyRows = obligations.filter((ob) => String(ob?.market || "").toLowerCase().includes("multiply"));
-  const focused = multiplyRows.filter((row) => {
-    const pair = deriveLendPairLabel(row).toUpperCase();
-    return pair.includes("ONYC/USDC") || pair.includes("ONYC/USDG");
-  });
-  const rows = focused.length ? focused : multiplyRows;
+  const detected = detectMultiplyObligations(obligations);
+  const rows = detected.sort((a, b) => Number(b?.netValueUsd || 0) - Number(a?.netValueUsd || 0));
 
-  multiplyTableWrap.innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Market</th><th>Position Value</th><th>Borrowed</th><th>LTV</th><th>Liq Threshold</th><th>Buffer</th></tr></thead>
-      <tbody>
-        ${
-          rows.length
-            ? rows
-                .map((o) => {
-                  const ltv = Number(o?.ltvPct ?? o?.ltv ?? NaN);
-                  const liq = Number(o?.liquidationThresholdPct ?? NaN);
-                  const buffer = Number.isFinite(ltv) && Number.isFinite(liq) ? liq - ltv : NaN;
-                  return `<tr>
-                    <td>${deriveLendPairLabel(o)}</td>
-                    <td>${fmtUsd(o?.netValueUsd)}</td>
-                    <td>${fmtUsd(o?.borrowedUsd ?? o?.borrowValueUsd)}</td>
-                    <td>${fmtPct(ltv)}</td>
-                    <td>${fmtPct(liq)}</td>
-                    <td class="${Number.isFinite(buffer) && buffer >= 0 ? "pnl-pos" : "pnl-neg"}">${fmtPct(buffer)}</td>
-                  </tr>`;
-                })
-                .join("")
-            : '<tr><td colspan="6" class="muted">No multiply positions found.</td></tr>'
-        }
-      </tbody>
-    </table>`;
+  if (!rows.length) {
+    multiplyTableWrap.innerHTML = `<div class="empty">No multiply positions detected (0).</div>`;
+  } else {
+    multiplyTableWrap.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Market</th><th class="num">Position Value</th><th class="num">Borrowed</th><th class="num">LTV</th><th class="num">Liq Threshold</th><th class="num">Buffer</th></tr></thead>
+        <tbody>
+          ${rows
+            .map((o) => {
+              const ltv = Number(o?.ltvPct ?? o?.ltv ?? o?.loanToValuePct ?? NaN);
+              const liq = Number(o?.liquidationThresholdPct ?? o?.liqThresholdPct ?? NaN);
+              const borrowed = Number(o?.borrowedUsd ?? o?.borrowValueUsd ?? o?.debtValueUsd ?? NaN);
+              const buffer = Number.isFinite(ltv) && Number.isFinite(liq) ? liq - ltv : NaN;
+              return `<tr>
+                <td>${deriveLendPairLabel(o)}</td>
+                <td class="num">${fmtUsd(o?.netValueUsd)}</td>
+                <td class="num">${fmtUsd(borrowed)}</td>
+                <td class="num">${fmtPct(ltv)}</td>
+                <td class="num">${fmtPct(liq)}</td>
+                <td class="num ${Number.isFinite(buffer) && buffer >= 0 ? "pnl-pos" : "pnl-neg"}">${fmtPct(buffer)}</td>
+              </tr>`;
+            })
+            .join("")}
+        </tbody>
+      </table>`;
+  }
+
+  debugStats.innerHTML = `
+    <div>Debug: raw lend obligations count = <strong>${obligations.length}</strong></div>
+    <div>Debug: multiply obligations detected = <strong>${detected.length}</strong></div>
+    <div>Debug: multiply rows rendered = <strong>${rows.length}</strong></div>
+  `;
+
+  if (!rows.length && obligations.length) {
+    const sample = obligations.slice(0, 2).map((ob) => ({
+      keys: Object.keys(ob ?? {}),
+      snippet: {
+        obligation: ob?.obligation,
+        market: ob?.market,
+        positionType: ob?.positionType,
+        kind: ob?.kind,
+        type: ob?.type,
+        category: ob?.category,
+        tags: ob?.tags,
+        reserveApyBreakdown: ob?.reserveApyBreakdown
+      }
+    }));
+    debugObligationHints.textContent = JSON.stringify(sample, null, 2);
+  } else {
+    debugObligationHints.textContent = "";
+  }
 }
 
-function renderRewardsAndWallet(summary, totals) {
+function renderRewardsAndWallet(totals) {
   const claimables = totals.claimableByPosition ?? [];
   const lpClaimables = claimables
     .filter((r) => String(r.positionType || "").toLowerCase().includes("liquidity"))
@@ -364,6 +427,7 @@ function renderRewardsAndWallet(summary, totals) {
       const v = estimateRewardValueUsd(r, totals.strategyMap, totals.claimedPriceBySymbol);
       return acc + (Number.isFinite(Number(v)) ? Number(v) : 0);
     }, 0);
+
   const multiplyClaimables = claimables
     .filter((r) => String(r.positionType || "").toLowerCase().includes("multiply") || String(r.positionType || "").toLowerCase().includes("lend"))
     .reduce((acc, r) => {
@@ -372,10 +436,10 @@ function renderRewardsAndWallet(summary, totals) {
     }, 0);
 
   rewardsSummary.innerHTML = [
-    { label: "LP claimables", value: fmtUsd(lpClaimables) },
-    { label: "Multiply claimables", value: fmtUsd(multiplyClaimables) },
-    { label: "Total claimables", value: fmtUsd(totals.totalClaimables) },
-    { label: "Wallet balance", value: fmtUsd(totals.walletUsd) }
+    { label: "LP Claimables", value: fmtUsd(lpClaimables) },
+    { label: "Multiply Claimables", value: fmtUsd(multiplyClaimables) },
+    { label: "Total Claimables", value: fmtUsd(totals.totalClaimables) },
+    { label: "Wallet Balance", value: fmtUsd(totals.walletUsd) }
   ]
     .map((s) => `<article class="stat"><div class="label">${s.label}</div><div class="value">${s.value}</div></article>`)
     .join("");
@@ -383,13 +447,17 @@ function renderRewardsAndWallet(summary, totals) {
 
 function renderAdvanced(summary, fullPositions) {
   const walletTokens = summary?.spot?.tokens ?? [];
-  walletTokensWrap.innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Token</th><th>Amount</th><th>Mint</th></tr></thead>
-      <tbody>
-      ${walletTokens.map((t) => `<tr><td>${t.symbol ?? "?"}</td><td>${fmtTokenAmount(t.amountUi)}</td><td class="mono">${t.mint ?? "n/a"}</td></tr>`).join("")}
-      </tbody>
-    </table>`;
+  walletTokensWrap.innerHTML = walletTokens.length
+    ? `
+      <table class="data-table">
+        <thead><tr><th>Token</th><th class="num">Amount</th><th>Mint</th></tr></thead>
+        <tbody>
+          ${walletTokens
+            .map((t) => `<tr><td>${t.symbol ?? DASH}</td><td class="num">${fmtTokenAmount(t.amountUi)}</td><td class="mono">${t.mint ?? DASH}</td></tr>`)
+            .join("")}
+        </tbody>
+      </table>`
+    : `<div class="empty">No wallet token accounts found.</div>`;
 
   rawJson.textContent = JSON.stringify(summary, null, 2);
   rawFullJson.textContent = fullPositions ? JSON.stringify(fullPositions, null, 2) : "Full positions not loaded yet.";
@@ -397,9 +465,9 @@ function renderAdvanced(summary, fullPositions) {
 
 function render(summary, fullPositions) {
   const totals = renderSummaryStrip(summary);
-  renderDelta(summary, fullPositions);
+  renderDelta(summary, fullPositions, totals);
   renderMultiply(summary);
-  renderRewardsAndWallet(summary, totals);
+  renderRewardsAndWallet(totals);
   renderAdvanced(summary, fullPositions);
 }
 

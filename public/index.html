@@ -37,20 +37,34 @@
           <span class="muted">Kamino Liquidity + Jupiter Perps hedge</span>
         </div>
         <div id="deltaMeta" class="summary-strip"></div>
+
+        <div id="driftStrategyList" class="drift-list"></div>
+
         <div class="gauge-wrap">
-          <div class="gauge-label">Drift Gauge <span id="driftPctLabel">n/a</span></div>
-          <div class="drift-gauge">
+          <div class="gauge-label">Drift Gauge <span id="driftPctLabel">—</span></div>
+          <div class="drift-gauge" aria-label="Drift gauge zones">
             <div class="zone zone-green"></div>
             <div class="zone zone-yellow"></div>
             <div class="zone zone-red"></div>
             <div id="driftNeedle" class="drift-needle"></div>
           </div>
+          <div class="gauge-ticks">
+            <span>0%</span>
+            <span>4%</span>
+            <span>8%</span>
+            <span>12%</span>
+          </div>
+          <div class="gauge-legend">OK &lt; 4% · Watch 4–8% · Rebalance &gt; 8%</div>
         </div>
 
         <h3>Liquidity</h3>
+        <p class="sub-note">Net = Fees + Incentives − Costs (when available)</p>
         <div class="table-wrap"><div id="liquidityTableWrap"></div></div>
 
-        <h3>Hedge (Perps)</h3>
+        <div class="hedge-head">
+          <h3>Hedge (Perps)</h3>
+          <span id="hedgeCoverage" class="muted">Hedge Coverage: —</span>
+        </div>
         <div class="table-wrap"><div id="hedgeTableWrap"></div></div>
       </section>
 
@@ -62,6 +76,7 @@
       <section class="card">
         <h2>Rewards & Wallet</h2>
         <div id="rewardsSummary" class="summary-strip"></div>
+        <p class="sub-note">Claiming moves rewards into wallet balance (this dashboard is read-only).</p>
       </section>
 
       <details class="card">
@@ -69,6 +84,8 @@
         <div class="details-body">
           <label class="inline-toggle"><input type="checkbox" id="betaEnabled" /> Enable Beta Lab (experimental)</label>
           <p class="muted">Beta Lab network calls are disabled in this layout.</p>
+          <div id="debugStats" class="debug-list"></div>
+          <pre id="debugObligationHints" class="raw-json"></pre>
         </div>
       </details>
 

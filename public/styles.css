@@ -1,6 +1,7 @@
 :root {
   --bg: #0b111b;
   --card: #111927;
+  --card-strong: #0d1624;
   --line: #263247;
   --text: #e7eef9;
   --muted: #9daac0;
@@ -21,16 +22,21 @@ body {
 }
 
 .container {
-  width: min(1100px, 94vw);
-  margin: 22px auto 40px;
+  width: min(1120px, 94vw);
+  margin: 22px auto 42px;
 }
 
 .card {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 14px;
+  padding: 16px;
   margin-top: 14px;
+}
+
+.compact-header {
+  background: var(--card-strong);
+  border-color: #324463;
 }
 
 h1,
@@ -40,11 +46,11 @@ h3 {
 }
 
 h1 {
-  font-size: 1.25rem;
+  font-size: 1.3rem;
 }
 
 h2 {
-  font-size: 1.05rem;
+  font-size: 1.06rem;
 }
 
 h3 {
@@ -55,7 +61,8 @@ h3 {
 .title-row,
 .controls-row,
 .toolbar-row,
-.section-head {
+.section-head,
+.hedge-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -113,14 +120,28 @@ button {
 
 .stat .label {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
 }
 
 .stat .value {
   margin-top: 4px;
   font-weight: 700;
-  font-size: 1.15rem;
+  font-size: 1.12rem;
+}
+
+.drift-list {
+  margin: 12px 0 0;
+  display: grid;
+  gap: 5px;
+}
+
+.drift-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .gauge-wrap {
@@ -148,18 +169,18 @@ button {
 }
 
 .zone-green {
-  width: 20%;
-  background: rgba(36, 193, 138, 0.7);
+  width: 33.333%;
+  background: rgba(36, 193, 138, 0.72);
 }
 
 .zone-yellow {
-  width: 20%;
-  background: rgba(240, 191, 85, 0.7);
+  width: 33.333%;
+  background: rgba(240, 191, 85, 0.72);
 }
 
 .zone-red {
-  width: 60%;
-  background: rgba(238, 107, 110, 0.7);
+  width: 33.333%;
+  background: rgba(238, 107, 110, 0.72);
 }
 
 .drift-needle {
@@ -170,6 +191,31 @@ button {
   background: #f4f8ff;
 }
 
+.gauge-ticks {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.gauge-ticks span:nth-child(2),
+.gauge-ticks span:nth-child(3),
+.gauge-ticks span:nth-child(4) {
+  text-align: center;
+}
+
+.gauge-ticks span:last-child {
+  text-align: right;
+}
+
+.gauge-legend,
+.sub-note {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -177,21 +223,33 @@ button {
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 740px;
 }
 
 .data-table th,
 .data-table td {
   border-bottom: 1px solid var(--line);
   padding: 8px;
-  text-align: left;
   font-size: 0.84rem;
   white-space: nowrap;
+  text-align: left;
 }
 
 .data-table th {
   color: var(--muted);
   font-weight: 600;
+}
+
+.data-table .num {
+  text-align: right;
+}
+
+.empty {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 0.88rem;
 }
 
 .muted {
@@ -210,14 +268,22 @@ button {
 }
 
 .raw-json {
-  margin: 0;
-  max-height: 280px;
+  margin: 8px 0 0;
+  max-height: 240px;
   overflow: auto;
   background: #0b111b;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
   font-size: 0.75rem;
+}
+
+.debug-list {
+  margin-top: 10px;
+  color: var(--muted);
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
 }
 
 .pnl-pos {
