@@ -5,161 +5,86 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Solana Positions Dashboard</title>
     <meta name="theme-color" content="#0b1220" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Wallet Positions" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="bg-orb orb-a"></div>
-    <div class="bg-orb orb-b"></div>
-
     <main class="container">
-      <header class="hero hero-card card">
-        <h1>Wallet Positions</h1>
-        <p>Jupiter Perps + Kamino Lend + Kamino Liquidity</p>
-      </header>
-
-      <section class="controls card">
-        <div class="controls-head">
-          <label for="walletInput">Wallet</label>
+      <header class="card compact-header">
+        <div class="title-row">
+          <h1>Strategy Dashboard</h1>
           <span id="status" class="status-pill">Idle</span>
         </div>
-        <div class="control-row">
+        <div class="controls-row">
           <input id="walletInput" type="text" placeholder="Enter Solana wallet address" />
-          <button id="loadBtn">Load</button>
+          <button id="loadBtn" type="button">Load</button>
         </div>
-        <div class="meta-row">
-          <div class="toggle-row">
-            <label class="inline-toggle"><input type="checkbox" id="autoRefresh" /> Auto-refresh (30s)</label>
-            <label class="inline-toggle"><input type="checkbox" id="betaEnabled" /> Enable Beta Lab (experimental)</label>
-          </div>
-          <span class="controls-hint">Data stays live; static UI is cached for app-like loading.</span>
+        <div class="toolbar-row">
+          <label class="inline-toggle"><input type="checkbox" id="autoRefresh" /> Auto-refresh (30s)</label>
+          <span id="updatedAt" class="muted">Updated —</span>
         </div>
+      </header>
+
+      <section class="card">
+        <h2>Portfolio Snapshot</h2>
+        <div id="summaryCards" class="summary-strip"></div>
       </section>
 
-      <section class="tabs card">
-        <button id="tabOverview" class="tab-btn is-active" type="button">Overview</button>
-        <button id="tabHedge" class="tab-btn" type="button">Hedge Drift</button>
-        <button id="tabBeta" class="tab-btn" type="button">Beta Lab</button>
+      <section class="card">
+        <div class="section-head">
+          <h2>Delta Engine</h2>
+          <span class="muted">Kamino Liquidity + Jupiter Perps hedge</span>
+        </div>
+        <div id="deltaMeta" class="summary-strip"></div>
+        <div class="gauge-wrap">
+          <div class="gauge-label">Drift Gauge <span id="driftPctLabel">n/a</span></div>
+          <div class="drift-gauge">
+            <div class="zone zone-green"></div>
+            <div class="zone zone-yellow"></div>
+            <div class="zone zone-red"></div>
+            <div id="driftNeedle" class="drift-needle"></div>
+          </div>
+        </div>
+
+        <h3>Liquidity</h3>
+        <div class="table-wrap"><div id="liquidityTableWrap"></div></div>
+
+        <h3>Hedge (Perps)</h3>
+        <div class="table-wrap"><div id="hedgeTableWrap"></div></div>
       </section>
 
-      <div id="overviewView">
-        <section class="card hedge-quick-card">
-          <div class="section-head">
-            <h2>Hedge Drift Snapshot</h2>
-            <span class="section-subtle">Strategy / Drift / Signal</span>
-          </div>
-          <div id="hedgeQuickWrap" class="rewards-wrap"></div>
-        </section>
+      <section class="card">
+        <h2>Multiply Engine</h2>
+        <div id="multiplyTableWrap" class="table-wrap"></div>
+      </section>
 
-        <section class="grid-cards" id="summaryCards"></section>
+      <section class="card">
+        <h2>Rewards & Wallet</h2>
+        <div id="rewardsSummary" class="summary-strip"></div>
+      </section>
 
-        <section class="card">
-          <h2>Wallet Tokens</h2>
-          <div id="walletTokensWrap" class="rewards-wrap"></div>
-        </section>
+      <details class="card">
+        <summary>Settings (Advanced)</summary>
+        <div class="details-body">
+          <label class="inline-toggle"><input type="checkbox" id="betaEnabled" /> Enable Beta Lab (experimental)</label>
+          <p class="muted">Beta Lab network calls are disabled in this layout.</p>
+        </div>
+      </details>
 
-        <section class="card">
-          <h2>Kamino Liquidity Pairs</h2>
-          <div id="liqEndpointInfo" class="liq-endpoint-info"></div>
-          <div id="pairsList" class="pairs-list"></div>
-        </section>
-
-        <section class="card">
-          <h2>Rewards</h2>
-          <div id="rewardsTableWrap" class="rewards-wrap"></div>
-        </section>
-
-        <section class="card">
-          <h2>Raw Summary</h2>
+      <details class="card">
+        <summary>Advanced Data (collapsed)</summary>
+        <div class="details-body">
+          <h3>Raw Token Accounts</h3>
+          <div id="walletTokensWrap" class="table-wrap"></div>
+          <h3>Raw JSON</h3>
           <pre id="rawJson" class="raw-json"></pre>
-        </section>
-      </div>
-
-      <div id="hedgeView" class="hidden">
-        <section class="card">
-          <h2>Hedge Strategy Monitor</h2>
-          <p class="table-note">Tracks LP strategy value against mapped Jupiter perps legs so you can spot hedge drift quickly.</p>
-          <div id="hedgeTableWrap" class="rewards-wrap"></div>
-        </section>
-      </div>
-
-      <div id="betaView" class="hidden">
-        <section class="card">
-          <h2>Beta Lab</h2>
-          <div class="beta-controls">
-            <label>Pair
-              <select id="betaPair">
-                <option value="NX8-USDC">NX8-USDC</option>
-                <option value="SOL-USDG">SOL-USDG</option>
-              </select>
-            </label>
-            <label>Benchmark
-              <select id="betaBenchmark">
-                <option value="WBTC">WBTC</option>
-                <option value="SOL">SOL</option>
-                <option value="ETH">ETH</option>
-              </select>
-            </label>
-            <label>Lookback (days)
-              <input id="betaLookback" type="number" min="7" max="180" value="30" />
-            </label>
-            <button id="betaRunBtn" type="button">Recalculate Beta</button>
-          </div>
-          <div id="betaMetricsWrap" class="rewards-wrap"></div>
-          <div id="betaRankingWrap" class="rewards-wrap"></div>
-          <div id="betaChartWrap" class="beta-chart"></div>
-        </section>
-      </div>
+          <h3>Raw Full Positions JSON</h3>
+          <pre id="rawFullJson" class="raw-json"></pre>
+        </div>
+      </details>
     </main>
 
     <script type="module" src="/app.js"></script>
-    <script>
-      (function () {
-        if (!("serviceWorker" in navigator)) return;
-
-        const host = window.location.hostname;
-        const isLocalhost =
-          host === "localhost" ||
-          host === "127.0.0.1" ||
-          host === "[::1]" ||
-          host.endsWith(".local");
-
-        window.addEventListener("load", function () {
-          if (isLocalhost) {
-            navigator.serviceWorker.getRegistrations().then(function (regs) {
-              regs.forEach(function (reg) {
-                reg.unregister().catch(function () {});
-              });
-            });
-            if (window.caches && typeof window.caches.keys === "function") {
-              window.caches.keys().then(function (keys) {
-                keys.forEach(function (key) {
-                  if (String(key).indexOf("solana-positions-shell-") === 0) {
-                    window.caches.delete(key).catch(function () {});
-                  }
-                });
-              });
-            }
-            return;
-          }
-
-          navigator.serviceWorker.register("/sw.js").catch(function (err) {
-            console.warn("Service worker registration failed:", err);
-          });
-        });
-      })();
-    </script>
   </body>
 </html>
