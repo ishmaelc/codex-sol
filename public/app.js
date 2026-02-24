@@ -1460,6 +1460,9 @@ async function loadSummary() {
       throw new Error(body.error || `Request failed (${summaryRes.status})`);
     }
     const summary = await summaryRes.json();
+    if (latestWallet !== wallet) {
+      return;
+    }
     latestSummary = summary;
 
     render(summary, latestFullPositions);
