@@ -1464,6 +1464,8 @@ async function loadSummary() {
 
     if (currentTab === "hedge") {
       await ensureFullPositionsLoaded();
+    } else {
+      void ensureFullPositionsLoaded();
     }
   } catch (err) {
     statusEl.textContent = err instanceof Error ? err.message : String(err);
