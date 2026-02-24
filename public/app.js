@@ -69,6 +69,20 @@ function deriveLendPairLabel(ob) {
   return String(ob?.market ?? "Unknown Pair");
 }
 
+function getLendObligations(summary) {
+  const k = summary?.kaminoLend ?? {};
+  const candidates = [
+    k?.obligations,
+    k?.positions,
+    k?.lendObligations,
+    k?.data?.obligations,
+    k?.raw?.obligations,
+    k?.raw?.data?.obligations
+  ];
+  const arr = candidates.find((v) => Array.isArray(v));
+  return Array.isArray(arr) ? arr : [];
+}
+
 function inferPerpSymbol(mint) {
   const known = {
     So11111111111111111111111111111111111111112: "SOL",
@@ -355,8 +369,10 @@ function detectMultiplyObligations(obligations) {
     const borrowSymbol = reserveRows.find((r) => String(r?.side ?? "").toLowerCase() === "borrow")?.symbol;
     const hasSupplyBorrowPair = Boolean(supplySymbol && borrowSymbol);
 
-    const hasDebt = Number(ob?.borrowedUsd ?? ob?.borrowValueUsd ?? ob?.debtValueUsd ?? NaN) > 0;
-    const hasRiskMetrics = Number.isFinite(Number(ob?.ltvPct ?? ob?.ltv ?? ob?.loanToValuePct ?? NaN));
+    const txs = Array.isArray(ob?.transactions) ? ob.transactions : [];
+    const hasBorrowTx = txs.some((t) => String(t?.transactionDisplayName ?? t?.transactionName ?? "").toLowerCase().includes("borrow"));
+
+    const hasDebtField = Number(ob?.borrowedUsd ?? ob?.borrowValueUsd ?? ob?.debtValueUsd ?? NaN) > 0;
 
     const explicitMultiply =
       Boolean(ob?.isMultiply) ||
@@ -366,15 +382,15 @@ function detectMultiplyObligations(obligations) {
       tags.includes("loop") ||
       tags.includes("leveraged");
 
-    // Fallback for Kamino lend payloads where multiply rows do not carry an explicit type flag.
-    const inferredFromLendShape = hasSupplyBorrowPair && hasDebt && hasRiskMetrics;
+    // Kamino lend often represents multiply rows as obligations with both supply+borrow legs and borrow activity.
+    const inferredFromLendShape = hasSupplyBorrowPair && (hasDebtField || hasBorrowTx);
 
     return explicitMultiply || inferredFromLendShape;
   });
 }
 
 function renderMultiply(summary) {
-  const obligations = summary?.kaminoLend?.obligations ?? [];
+  const obligations = getLendObligations(summary);
   const detected = detectMultiplyObligations(obligations);
   const rows = detected.sort((a, b) => Number(b?.netValueUsd || 0) - Number(a?.netValueUsd || 0));
 
@@ -421,7 +437,7 @@ function renderMultiply(summary) {
   }).length;
 
   debugStats.innerHTML = `
-    <div>Debug: raw lend obligations count = <strong>${obligations.length}</strong></div>
+    <div>Debug: raw Kamino lend obligations count = <strong>${obligations.length}</strong></div>
     <div>Debug: multiply obligations detected = <strong>${detected.length}</strong></div>
     <div>Debug: multiply rows rendered = <strong>${rows.length}</strong></div>
     <div>Debug: inferred from lend-shape fallback = <strong>${inferredCount}</strong></div>
