@@ -1445,10 +1445,13 @@ async function loadSummary() {
 
   statusEl.textContent = "Loading...";
   loadBtn.disabled = true;
+  const walletChanged = latestWallet !== wallet;
   latestWallet = wallet;
   latestSummary = null;
-  latestFullPositions = null;
-  fullPositionsLoadPromise = null;
+  if (walletChanged) {
+    latestFullPositions = null;
+    fullPositionsLoadPromise = null;
+  }
 
   try {
     const summaryRes = await fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`);
