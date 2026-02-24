@@ -71,6 +71,29 @@ function inferPerpSymbol(mint) {
   return known[mint] ?? `${mint.slice(0, 4)}...${mint.slice(-4)}`;
 }
 
+
+function estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol) {
+  const amount = Number(row?.amountUi);
+  if (!Number.isFinite(amount)) return null;
+
+  const stableSymbols = new Set(["USDC", "USDG", "USDS"]);
+  if (stableSymbols.has(String(row?.symbol || "").toUpperCase())) return amount;
+
+  const strategy = row?.strategy ? strategyMap.get(row.strategy) : null;
+  if (strategy) {
+    if (row.symbol === strategy.tokenASymbol && Number.isFinite(Number(strategy.tokenAPriceUsd))) {
+      return amount * Number(strategy.tokenAPriceUsd);
+    }
+    if (row.symbol === strategy.tokenBSymbol && Number.isFinite(Number(strategy.tokenBPriceUsd))) {
+      return amount * Number(strategy.tokenBPriceUsd);
+    }
+  }
+
+  const claimedPrice = claimedPriceBySymbol.get(String(row?.symbol || "").toUpperCase());
+  if (Number.isFinite(claimedPrice)) return amount * claimedPrice;
+  return null;
+}
+
 function hedgeSignal(driftPct, hedgeRatio) {
   if (!Number.isFinite(driftPct) || !Number.isFinite(hedgeRatio)) return { label: "n/a", className: "" };
   const absDrift = Math.abs(driftPct);
@@ -164,13 +187,60 @@ function renderSummaryStrip(summary) {
     })
     .find((v) => Number.isFinite(v));
 
-  const walletTokens = summary?.spot?.tokens ?? [];
-  const walletUsd =
-    (Number.isFinite(solPriceFromStrategies) ? Number(summary?.spot?.nativeSol || 0) * solPriceFromStrategies : 0) +
-    walletTokens.reduce((acc, t) => acc + Number(t.amountUi || 0) * (Number(t.priceUsd) || 0), 0);
+  const stableSymbols = new Set(["USDC", "USDG", "USDS"]);
+  const lendTokenPricesByMint = new Map((summary?.kaminoLend?.tokenPrices?.byMint ?? []).map((r) => [String(r.mint), Number(r.priceUsd)]));
+  const lendTokenPricesBySymbol = new Map(
+    (summary?.kaminoLend?.tokenPrices?.bySymbol ?? []).map((r) => [String(r.symbol ?? "").toUpperCase(), Number(r.priceUsd)])
+  );
 
-  const claimables = summary?.kaminoLiquidity?.rewards?.claimableByPosition ?? [];
-  const totalClaimables = claimables.reduce((acc, row) => acc + Number(row.amountUsd || 0), 0);
+  function tokenPriceUsd(symbol, mint) {
+    const sym = String(symbol ?? "").toUpperCase();
+    if (sym === "SOL" || mint === "So11111111111111111111111111111111111111112") {
+      return Number.isFinite(solPriceFromStrategies) ? solPriceFromStrategies : null;
+    }
+    if (stableSymbols.has(sym)) return 1;
+
+    const byMint = lendTokenPricesByMint.get(String(mint ?? ""));
+    if (Number.isFinite(byMint) && byMint > 0) return byMint;
+
+    const bySymbol = lendTokenPricesBySymbol.get(sym);
+    if (Number.isFinite(bySymbol) && bySymbol > 0) return bySymbol;
+
+    for (const st of strategyValuations) {
+      if (sym === String(st?.tokenASymbol ?? "").toUpperCase() || mint === st?.tokenAMint) {
+        const px = Number(st?.tokenAPriceUsd);
+        if (Number.isFinite(px) && px > 0) return px;
+      }
+      if (sym === String(st?.tokenBSymbol ?? "").toUpperCase() || mint === st?.tokenBMint) {
+        const px = Number(st?.tokenBPriceUsd);
+        if (Number.isFinite(px) && px > 0) return px;
+      }
+    }
+    return null;
+  }
+
+  const walletTokens = summary?.spot?.tokens ?? [];
+  const knownSolSpotUsd = Number.isFinite(solPriceFromStrategies) ? Number(summary?.spot?.nativeSol || 0) * solPriceFromStrategies : 0;
+  const knownSplSpotUsd = walletTokens.reduce((acc, t) => {
+    const px = tokenPriceUsd(t?.symbol, t?.mint);
+    return acc + (px == null ? 0 : Number(t?.amountUi || 0) * px);
+  }, 0);
+  const walletUsd = knownSolSpotUsd + knownSplSpotUsd;
+
+  const claimableValueFromSummary = Number(summary?.kaminoLiquidity?.rewards?.claimableValueUsd ?? NaN);
+  const claimableByPosition = summary?.kaminoLiquidity?.rewards?.claimableByPosition ?? [];
+  const claimedRewards = summary?.kaminoLiquidity?.rewards?.claimedByPositionTypeSymbol ?? [];
+  const strategyMap = new Map(strategyValuations.map((s) => [s.strategy, s]));
+  const claimedPriceBySymbol = new Map(
+    claimedRewards
+      .filter((r) => Number(r.amountUi) > 0 && Number(r.amountUsd) > 0)
+      .map((r) => [String(r.symbol ?? "").toUpperCase(), Number(r.amountUsd) / Number(r.amountUi)])
+  );
+  const estimatedClaimables = claimableByPosition.reduce((acc, row) => {
+    const v = estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol);
+    return acc + (Number.isFinite(Number(v)) ? Number(v) : 0);
+  }, 0);
+  const totalClaimables = Number.isFinite(claimableValueFromSummary) ? claimableValueFromSummary : estimatedClaimables;
 
   summaryCards.innerHTML = [
     { label: "Total Portfolio", value: fmtUsd(positionsTotalUsd + walletUsd) },
@@ -180,7 +250,7 @@ function renderSummaryStrip(summary) {
     .map((s) => `<article class="stat"><div class="label">${s.label}</div><div class="value">${s.value}</div></article>`)
     .join("");
 
-  return { totalClaimables, walletUsd };
+  return { totalClaimables, walletUsd, claimableByPosition, strategyMap, claimedPriceBySymbol };
 }
 
 function renderDelta(summary, fullPositions) {
@@ -287,13 +357,19 @@ function renderMultiply(summary) {
 }
 
 function renderRewardsAndWallet(summary, totals) {
-  const claimables = summary?.kaminoLiquidity?.rewards?.claimableByPosition ?? [];
+  const claimables = totals.claimableByPosition ?? [];
   const lpClaimables = claimables
     .filter((r) => String(r.positionType || "").toLowerCase().includes("liquidity"))
-    .reduce((acc, r) => acc + Number(r.amountUsd || 0), 0);
+    .reduce((acc, r) => {
+      const v = estimateRewardValueUsd(r, totals.strategyMap, totals.claimedPriceBySymbol);
+      return acc + (Number.isFinite(Number(v)) ? Number(v) : 0);
+    }, 0);
   const multiplyClaimables = claimables
     .filter((r) => String(r.positionType || "").toLowerCase().includes("multiply") || String(r.positionType || "").toLowerCase().includes("lend"))
-    .reduce((acc, r) => acc + Number(r.amountUsd || 0), 0);
+    .reduce((acc, r) => {
+      const v = estimateRewardValueUsd(r, totals.strategyMap, totals.claimedPriceBySymbol);
+      return acc + (Number.isFinite(Number(v)) ? Number(v) : 0);
+    }, 0);
 
   rewardsSummary.innerHTML = [
     { label: "LP claimables", value: fmtUsd(lpClaimables) },
