@@ -350,14 +350,26 @@ function detectMultiplyObligations(obligations) {
       .join(" ");
     const tags = Array.isArray(ob?.tags) ? ob.tags.map((t) => String(t).toLowerCase()) : [];
 
-    return (
+    const reserveRows = Array.isArray(ob?.reserveApyBreakdown) ? ob.reserveApyBreakdown : [];
+    const supplySymbol = reserveRows.find((r) => String(r?.side ?? "").toLowerCase() === "supply")?.symbol;
+    const borrowSymbol = reserveRows.find((r) => String(r?.side ?? "").toLowerCase() === "borrow")?.symbol;
+    const hasSupplyBorrowPair = Boolean(supplySymbol && borrowSymbol);
+
+    const hasDebt = Number(ob?.borrowedUsd ?? ob?.borrowValueUsd ?? ob?.debtValueUsd ?? NaN) > 0;
+    const hasRiskMetrics = Number.isFinite(Number(ob?.ltvPct ?? ob?.ltv ?? ob?.loanToValuePct ?? NaN));
+
+    const explicitMultiply =
       Boolean(ob?.isMultiply) ||
       flags.includes("multiply") ||
       flags.includes("loop") ||
       tags.includes("multiply") ||
       tags.includes("loop") ||
-      tags.includes("leveraged")
-    );
+      tags.includes("leveraged");
+
+    // Fallback for Kamino lend payloads where multiply rows do not carry an explicit type flag.
+    const inferredFromLendShape = hasSupplyBorrowPair && hasDebt && hasRiskMetrics;
+
+    return explicitMultiply || inferredFromLendShape;
   });
 }
 
@@ -393,10 +405,26 @@ function renderMultiply(summary) {
       </table>`;
   }
 
+  const inferredCount = detected.filter((ob) => {
+    const flags = [ob?.positionType, ob?.kind, ob?.type, ob?.category, ob?.strategyType, ob?.market, ob?.subType, ob?.label]
+      .map((v) => String(v ?? "").toLowerCase())
+      .join(" ");
+    const tags = Array.isArray(ob?.tags) ? ob.tags.map((t) => String(t).toLowerCase()) : [];
+    const explicit =
+      Boolean(ob?.isMultiply) ||
+      flags.includes("multiply") ||
+      flags.includes("loop") ||
+      tags.includes("multiply") ||
+      tags.includes("loop") ||
+      tags.includes("leveraged");
+    return !explicit;
+  }).length;
+
   debugStats.innerHTML = `
     <div>Debug: raw lend obligations count = <strong>${obligations.length}</strong></div>
     <div>Debug: multiply obligations detected = <strong>${detected.length}</strong></div>
     <div>Debug: multiply rows rendered = <strong>${rows.length}</strong></div>
+    <div>Debug: inferred from lend-shape fallback = <strong>${inferredCount}</strong></div>
   `;
 
   if (!rows.length && obligations.length) {
