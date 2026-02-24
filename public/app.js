@@ -31,6 +31,10 @@ walletInput.value = DEFAULT_WALLET;
 let refreshTimer = null;
 let currentTab = "overview";
 let betaLastKey = "";
+let latestWallet = "";
+let latestSummary = null;
+let latestFullPositions = null;
+let fullPositionsLoadPromise = null;
 
 const HEDGE_LINKS = [
   { strategyLabel: "NX8-USDC vs WBTC Short", lpPair: "NX8-USDC", perpSymbol: "WBTC" },
@@ -230,6 +234,48 @@ function setTab(tab) {
   tabOverview.classList.toggle("is-active", showOverview);
   tabHedge.classList.toggle("is-active", showHedge);
   tabBeta.classList.toggle("is-active", showBeta);
+
+  if (showHedge) {
+    void ensureFullPositionsLoaded();
+  }
+}
+
+async function ensureFullPositionsLoaded() {
+  const wallet = latestWallet || walletInput.value.trim();
+  if (!wallet) return null;
+  if (latestFullPositions && latestWallet === wallet) {
+    return latestFullPositions;
+  }
+  if (fullPositionsLoadPromise) {
+    return fullPositionsLoadPromise;
+  }
+
+  fullPositionsLoadPromise = (async () => {
+    const fullRes = await fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`);
+    if (!fullRes.ok) {
+      const body = await fullRes.json().catch(() => ({}));
+      throw new Error(body.error || `Full positions request failed (${fullRes.status})`);
+    }
+    const fullPositions = await fullRes.json();
+    if (latestWallet === wallet) {
+      latestFullPositions = fullPositions;
+      if (latestSummary) {
+        render(latestSummary, latestFullPositions);
+      }
+    }
+    return fullPositions;
+  })();
+
+  try {
+    return await fullPositionsLoadPromise;
+  } catch (err) {
+    if (currentTab === "hedge") {
+      statusEl.textContent = err instanceof Error ? err.message : String(err);
+    }
+    return null;
+  } finally {
+    fullPositionsLoadPromise = null;
+  }
 }
 
 function updateBetaLabEnabled() {
@@ -1399,24 +1445,26 @@ async function loadSummary() {
 
   statusEl.textContent = "Loading...";
   loadBtn.disabled = true;
+  latestWallet = wallet;
+  latestSummary = null;
+  latestFullPositions = null;
+  fullPositionsLoadPromise = null;
 
   try {
-    const [summaryRes, fullRes] = await Promise.all([
-      fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`),
-      fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`)
-    ]);
+    const summaryRes = await fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`);
     if (!summaryRes.ok) {
       const body = await summaryRes.json().catch(() => ({}));
       throw new Error(body.error || `Request failed (${summaryRes.status})`);
     }
     const summary = await summaryRes.json();
-    let fullPositions = null;
-    if (fullRes.ok) {
-      fullPositions = await fullRes.json();
-    }
+    latestSummary = summary;
 
-    render(summary, fullPositions);
-    statusEl.textContent = `Updated ${new Date().toLocaleTimeString()}${fullRes.ok ? "" : " (hedge data partial)"}`;
+    render(summary, latestFullPositions);
+    statusEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+    if (currentTab === "hedge") {
+      await ensureFullPositionsLoaded();
+    }
   } catch (err) {
     statusEl.textContent = err instanceof Error ? err.message : String(err);
   } finally {
