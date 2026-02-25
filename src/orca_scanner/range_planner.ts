@@ -1,3 +1,4 @@
+import { getOperatorMode, normalizeCadenceHours } from "../portfolio/operator_mode.js";
 import type { PlansOutput, PoolPlan, RangePreset, RankedPool, RegimeState, ShortlistOutput } from "./types.js";
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -77,7 +78,9 @@ export function buildRangePlans(args: {
   regime: RegimeState;
   spotByPool: Map<string, number | undefined>;
   rankingByPool?: Map<string, RankedPool>;
+  monitorCadenceHours?: number;
 }): Omit<PlansOutput, "notes"> {
+  const operatorMode = getOperatorMode(normalizeCadenceHours(args.monitorCadenceHours));
   const widthMult = regimeWidthMultiplier(args.regime.regime);
   const plans: PoolPlan[] = args.shortlist.selected.map((s) => {
     const volProxy = volProxyByType(s.type, args.regime);
@@ -107,6 +110,7 @@ export function buildRangePlans(args: {
       volatilityProxyPctAnnual: Number(volProxy.toFixed(2)),
       regimeWidthMultiplier: widthMult,
       presets: buildPresets(spot, volProxy, s.type, args.regime.regime),
+      recommendedPreset: operatorMode.presetBias === "CONSERVATIVE" ? "Conservative" : "Base",
       hedge: {
         enabled: false,
         side: "NONE",

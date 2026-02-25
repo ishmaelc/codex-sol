@@ -3,6 +3,7 @@ import {
   increaseLiquidityQuote,
   priceToTickIndex
 } from "@orca-so/whirlpools-core";
+import { getOperatorMode, normalizeCadenceHours } from "../portfolio/operator_mode.js";
 import type { HedgePlan, PlansOutput, RankedPool } from "./types.js";
 
 const STABLES = new Set(["USDC", "USDT", "USDG", "PYUSD", "ONYC"]);
@@ -139,8 +140,9 @@ export function computeDepositRatioUSD(
 
 export function applyHedgePlans(
   plans: PlansOutput,
-  opts: { solSpotUsd?: number; rankingByPool?: Map<string, RankedPool> } = {}
+  opts: { solSpotUsd?: number; rankingByPool?: Map<string, RankedPool>; monitorCadenceHours?: number } = {}
 ): PlansOutput {
+  const operatorMode = getOperatorMode(normalizeCadenceHours(opts.monitorCadenceHours));
   const funding = plans.regime.fundingAprPct;
   const fundingPenalty = funding != null && funding > 20 ? 0.9 : 1;
   const solSpotUsd = opts.solSpotUsd && Number.isFinite(opts.solSpotUsd) && opts.solSpotUsd > 0 ? opts.solSpotUsd : 200;
@@ -150,7 +152,8 @@ export function applyHedgePlans(
       const widthPct = baseWidthPct(p);
       const deltaAdj = clamp(1.0 + (0.1 - widthPct / 20), 0.75, 1.15);
       const heuristicDeltaFraction = baseDeltaFraction(p.type) * deltaAdj;
-      const hedgeMultiplier = hedgeMultiplierByRegime(plans.regime.label);
+      const cadenceSafetyMultiplier = operatorMode.monitorCadenceHours === 48 ? 1.08 : 1.0;
+      const hedgeMultiplier = hedgeMultiplierByRegime(plans.regime.label) * cadenceSafetyMultiplier;
       const row = opts.rankingByPool?.get(p.poolAddress);
       let depositRatioSource: HedgePlan["depositRatioSource"] = "fallback";
       let depositRatioTokenARatioUSD: number | undefined;
@@ -197,7 +200,7 @@ export function applyHedgePlans(
           depositRatioRiskAssetUSD = Number(ratio.riskAssetRatioUSD.toFixed(4));
           approxDeltaFraction = ratio.riskAssetRatioUSD * deltaAdj;
           hedgeUSD = 10_000 * ratio.riskAssetRatioUSD * hedgeMultiplier * fundingPenalty;
-          note = "derived from deposit ratio for planned Base range at current price";
+          note = `derived from deposit ratio for planned ${p.recommendedPreset ?? "Base"} range at current price`;
         } catch (err) {
           note = `fallback heuristic used: ${err instanceof Error ? err.message : String(err)}`;
         }

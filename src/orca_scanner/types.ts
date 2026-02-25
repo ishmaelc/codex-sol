@@ -238,6 +238,7 @@ export type PoolPlan = {
   volatilityProxyPctAnnual: number;
   regimeWidthMultiplier?: number;
   presets: RangePreset[];
+  recommendedPreset?: RangePreset["label"];
   hedge: HedgePlan;
 };
 
@@ -274,7 +275,9 @@ export type AlertKind =
   | "VOLUME_TVL_COLLAPSE"
   | "TVL_FLIGHT"
   | "DEPTH_COLLAPSE"
-  | "NEAR_RANGE_EDGE";
+  | "NEAR_RANGE_EDGE"
+  | "RANGE_EDGE_WARN"
+  | "RANGE_EDGE_ACTION";
 
 export type OrcaAlert = {
   id: string;

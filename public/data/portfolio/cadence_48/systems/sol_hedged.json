@@ -1,0 +1,56 @@
+{
+  "id": "sol_hedged",
+  "label": "SOL Hedged Yield System",
+  "netDelta": 2.5764210526315807,
+  "totalLong": 51.52842105263158,
+  "totalShort": 48.952,
+  "leverage": null,
+  "liqBufferPct": null,
+  "score": 0.6669784047619047,
+  "breakdown": {
+    "delta": 0.6666666666666665,
+    "hedge": 0.3039085714285714,
+    "range": 1,
+    "stability": 0.9498166666666666,
+    "weighted": 0.6669784047619047,
+    "status": "yellow"
+  },
+  "riskFlags": [
+    "MISSING_DATA",
+    "RANGE_EDGE_ACTION",
+    "LOW_LIQ_BUFFER",
+    "LOW_MONITORING"
+  ],
+  "exposures": [
+    {
+      "source": "orca_plans",
+      "asset": "SOL",
+      "direction": "long",
+      "quantityBase": 51.52842105263158,
+      "notionalUsd": 4570.547541613726,
+      "confidence": "low",
+      "notes": "Long SOL exposure inferred from Orca/Kamino deployment mix."
+    },
+    {
+      "source": "api_positions",
+      "asset": "SOL",
+      "direction": "short",
+      "quantityBase": 48.952,
+      "notionalUsd": 4342.02016453304,
+      "confidence": "low",
+      "notes": "Fallback to hedge planner sizing."
+    }
+  ],
+  "hedge": {
+    "source": "jupiter_perps",
+    "asset": "SOL",
+    "side": "short",
+    "quantityBase": 48.952,
+    "notionalUsd": 4342.02016453304,
+    "leverage": null,
+    "liqPrice": null,
+    "markPrice": 88.69954577,
+    "liqBufferPct": null
+  },
+  "updatedAt": "2026-02-25T22:35:22.191Z"
+}
