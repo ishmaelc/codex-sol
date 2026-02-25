@@ -1,23 +1,31 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { normalizeCadenceHours } from "./operator_mode.js";
 import { nx8SystemDefinition } from "./systems/nx8_system.js";
 import { solSystemDefinition } from "./systems/sol_system.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot } from "./types.js";
 
 const systems: HedgedSystemDefinition[] = [solSystemDefinition, nx8SystemDefinition];
 
-export async function runPortfolioEngine(): Promise<{
+export async function runPortfolioEngine(opts: {
+  monitorCadenceHours?: number;
+  outputBaseDir?: string;
+} = {}): Promise<{
   indexPath: string;
   systemPaths: string[];
   snapshots: HedgedSystemSnapshot[];
 }> {
-  const outDir = path.resolve(process.cwd(), "public/data/portfolio/systems");
+  const cadence = normalizeCadenceHours(opts.monitorCadenceHours);
+  const outRoot = opts.outputBaseDir
+    ? path.resolve(process.cwd(), opts.outputBaseDir)
+    : path.resolve(process.cwd(), `public/data/portfolio/cadence_${cadence}`);
+  const outDir = path.join(outRoot, "systems");
   await fs.mkdir(outDir, { recursive: true });
 
   const snapshots = await Promise.all(
     systems.map(async (system) => {
       try {
-        return await system.buildSnapshot();
+        return await system.buildSnapshot({ monitorCadenceHours: cadence });
       } catch (err) {
         return {
           id: system.id,
@@ -44,9 +52,10 @@ export async function runPortfolioEngine(): Promise<{
     systemPaths.push(filePath);
   }
 
-  const indexPath = path.resolve(process.cwd(), "public/data/portfolio/systems_index.json");
+  const indexPath = path.join(outRoot, "systems_index.json");
   const indexPayload = {
     updatedAt: new Date().toISOString(),
+    monitorCadenceHours: cadence,
     systems: snapshots.map((s) => ({
       id: s.id,
       label: s.label,

@@ -7,6 +7,7 @@ import {
   computeStabilityScore,
   computeSystemScore
 } from "../scoring.js";
+import { getOperatorMode, normalizeCadenceHours } from "../operator_mode.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot, RiskFlags } from "../types.js";
 
 async function readJson<T>(filePath: string): Promise<T | null> {
@@ -22,7 +23,8 @@ function asNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function buildNx8SystemSnapshot(): Promise<HedgedSystemSnapshot> {
+export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: number }): Promise<HedgedSystemSnapshot> {
+  const operatorMode = getOperatorMode(normalizeCadenceHours(context?.monitorCadenceHours));
   const baseDir = path.resolve(process.cwd(), "public/data/orca");
   const [rankings, regime] = await Promise.all([
     readJson<Record<string, unknown>>(path.join(baseDir, "pool_rankings.json")),
@@ -48,7 +50,7 @@ export async function buildNx8SystemSnapshot(): Promise<HedgedSystemSnapshot> {
   const feeApr = asNum(firstRank.feeAprPct) ?? 6;
   const regimeConfidence = asNum(regime?.confidence) ?? 0.25;
 
-  const deltaScore = computeDeltaScore(netDelta, Math.max(Math.abs(nx8Notional ?? 1) * 0.3, 1));
+  const deltaScore = computeDeltaScore(netDelta, Math.max(Math.abs(nx8Notional ?? 1) * operatorMode.deltaTolerance, 1));
   const hedgeScore = computeHedgeSafetyScore({ leverage, liqBufferPct, fundingApr: 8 });
   const rangeScore = computeRangeHealthScore({
     inRange: false,
@@ -60,6 +62,7 @@ export async function buildNx8SystemSnapshot(): Promise<HedgedSystemSnapshot> {
   const breakdown = computeSystemScore({ deltaScore, hedgeScore, rangeScore, stabilityScore });
 
   const riskFlags: RiskFlags = ["PROXY_HEDGE", "MISSING_DATA"];
+  if (operatorMode.monitorCadenceHours === 48) riskFlags.push("LOW_MONITORING");
 
   return {
     id: "nx8_hedged",

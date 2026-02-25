@@ -1,3 +1,4 @@
+import { getOperatorMode, normalizeCadenceHours } from "../portfolio/operator_mode.js";
 import type { AlertsOutput, OrcaAlert, PlansOutput, PoolRankingOutput, RegimeState, ShortlistOutput } from "./types.js";
 
 function mkAlert(a: OrcaAlert): OrcaAlert {
@@ -9,9 +10,11 @@ export function buildAlerts(args: {
   rankings: PoolRankingOutput;
   shortlist: ShortlistOutput;
   plans: PlansOutput;
+  monitorCadenceHours?: number;
 }): AlertsOutput {
   const alerts: OrcaAlert[] = [];
   const topByAddress = new Map((args.rankings.topPoolsOverall ?? args.rankings.pools).map((p) => [p.poolAddress, p]));
+  const operatorMode = getOperatorMode(normalizeCadenceHours(args.monitorCadenceHours));
 
   const funding = args.regime.metrics.fundingAprPct;
   if (funding != null && funding >= 15) {
@@ -75,20 +78,34 @@ export function buildAlerts(args: {
     }
 
     const plan = args.plans.plans.find((p) => p.poolAddress === row.poolAddress);
-    const base = plan?.presets.find((p) => p.label === "Base");
-    if (plan?.spotPrice && base && base.upperPrice && base.lowerPrice) {
-      const span = base.upperPrice - base.lowerPrice;
-      const distToEdge = Math.min(plan.spotPrice - base.lowerPrice, base.upperPrice - plan.spotPrice);
-      const edgePct = span > 0 ? (distToEdge / span) * 100 : 50;
-      if (edgePct < 12) {
+    const preferredLabel = plan?.recommendedPreset ?? "Base";
+    const preferred = plan?.presets.find((p) => p.label === preferredLabel) ?? plan?.presets.find((p) => p.label === "Base");
+    if (plan?.spotPrice && preferred && preferred.upperPrice && preferred.lowerPrice) {
+      const span = preferred.upperPrice - preferred.lowerPrice;
+      const distToEdge = Math.min(plan.spotPrice - preferred.lowerPrice, preferred.upperPrice - plan.spotPrice);
+      const edgePct = span > 0 ? distToEdge / span : 0.5;
+      if (edgePct <= operatorMode.actEdgePct) {
         alerts.push(
           mkAlert({
-            id: `near-edge-${row.poolAddress}`,
-            severity: "info",
-            kind: "NEAR_RANGE_EDGE",
+            id: `range-edge-action-${row.poolAddress}`,
+            severity: "critical",
+            kind: "RANGE_EDGE_ACTION",
             poolAddress: row.poolAddress,
             pool: row.pool,
-            message: `${row.pool} spot is close to Base range edge (${edgePct.toFixed(1)}% of half-span remaining).`
+            message: `${row.pool} is at action edge threshold (${(edgePct * 100).toFixed(1)}% <= ${(operatorMode.actEdgePct * 100).toFixed(1)}%).`,
+            metric: { name: "distanceToEdgePct", value: Number((edgePct * 100).toFixed(2)), threshold: operatorMode.actEdgePct * 100 }
+          })
+        );
+      } else if (edgePct <= operatorMode.warnEdgePct) {
+        alerts.push(
+          mkAlert({
+            id: `range-edge-warn-${row.poolAddress}`,
+            severity: "warn",
+            kind: "RANGE_EDGE_WARN",
+            poolAddress: row.poolAddress,
+            pool: row.pool,
+            message: `${row.pool} is near edge warning threshold (${(edgePct * 100).toFixed(1)}% <= ${(operatorMode.warnEdgePct * 100).toFixed(1)}%).`,
+            metric: { name: "distanceToEdgePct", value: Number((edgePct * 100).toFixed(2)), threshold: operatorMode.warnEdgePct * 100 }
           })
         );
       }
@@ -99,6 +116,9 @@ export function buildAlerts(args: {
     generatedAt: new Date().toISOString(),
     regime: args.regime.regime,
     alerts,
-    notes: ["Threshold-based monitor. Alerts are heuristic and intended for weekly-active LP workflows."]
+    notes: [
+      "Threshold-based monitor. Alerts are heuristic and intended for weekly-active LP workflows.",
+      `Operator mode cadence=${operatorMode.monitorCadenceHours}h warnEdge<=${(operatorMode.warnEdgePct * 100).toFixed(1)}% action<=${(operatorMode.actEdgePct * 100).toFixed(1)}%`
+    ]
   };
 }

@@ -28,6 +28,9 @@ export type RiskFlags = Array<
   | "HIGH_LEVERAGE"
   | "FUNDING_HEADWIND"
   | "DELTA_DRIFT"
+  | "LOW_MONITORING"
+  | "RANGE_EDGE_WARN"
+  | "RANGE_EDGE_ACTION"
 >;
 
 export type SystemScoreBreakdown = {
@@ -58,5 +61,5 @@ export type HedgedSystemSnapshot = {
 export type HedgedSystemDefinition = {
   id: string;
   label: string;
-  buildSnapshot: () => Promise<HedgedSystemSnapshot>;
+  buildSnapshot: (context?: { monitorCadenceHours?: number }) => Promise<HedgedSystemSnapshot>;
 };

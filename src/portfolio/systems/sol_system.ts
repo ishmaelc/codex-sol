@@ -7,6 +7,7 @@ import {
   computeStabilityScore,
   computeSystemScore
 } from "../scoring.js";
+import { getOperatorMode, normalizeCadenceHours } from "../operator_mode.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot, RiskFlags } from "../types.js";
 
 type JsonObj = Record<string, unknown>;
@@ -80,7 +81,8 @@ async function fetchPerpExposureFromApi(): Promise<{
   }
 }
 
-export async function buildSolSystemSnapshot(): Promise<HedgedSystemSnapshot> {
+export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: number }): Promise<HedgedSystemSnapshot> {
+  const operatorMode = getOperatorMode(normalizeCadenceHours(context?.monitorCadenceHours));
   const baseDir = path.resolve(process.cwd(), "public/data/orca");
   const [plans, shortlist, rankings, regime] = await Promise.all([
     readJson<JsonObj>(path.join(baseDir, "plans.json")),
@@ -131,6 +133,9 @@ export async function buildSolSystemSnapshot(): Promise<HedgedSystemSnapshot> {
   const distPct = asNum(basePreset?.halfWidthPct) ?? null;
   const inRange = true;
 
+  if ((distPct ?? Number.POSITIVE_INFINITY) <= operatorMode.actEdgePct * 100) flags.push("RANGE_EDGE_ACTION");
+  else if ((distPct ?? Number.POSITIVE_INFINITY) <= operatorMode.warnEdgePct * 100) flags.push("RANGE_EDGE_WARN");
+
   const selectedSol = ((shortlist?.selected as unknown[]) ?? []).find((r) => String((r as JsonObj)?.type ?? "") === "SOL-STABLE") as JsonObj | undefined;
   const firstRank = (((rankings?.topPoolsOverall as unknown[]) ?? [])[0] ?? {}) as JsonObj;
   const volumeTvl = asNum(selectedSol?.volume24hUsd) != null && asNum(selectedSol?.tvlUsd)
@@ -140,7 +145,7 @@ export async function buildSolSystemSnapshot(): Promise<HedgedSystemSnapshot> {
   const feeApr = asNum(selectedSol?.feeAprPct) ?? asNum(firstRank?.feeAprPct) ?? 0;
   const regimeConfidence = asNum(regime?.confidence) ?? 0.4;
 
-  const deltaScore = computeDeltaScore(netSolDelta, Math.max(totalLongSol * 0.2, 0.1));
+  const deltaScore = computeDeltaScore(netSolDelta, Math.max(totalLongSol * operatorMode.deltaTolerance, 0.1));
   const hedgeScore = computeHedgeSafetyScore({
     leverage: perp?.leverage ?? 3,
     liqBufferPct: liqBufferPct ?? 0,
@@ -156,7 +161,8 @@ export async function buildSolSystemSnapshot(): Promise<HedgedSystemSnapshot> {
   const breakdown = computeSystemScore({ deltaScore, hedgeScore, rangeScore, stabilityScore });
 
   if (Math.abs(netSolDelta) > Math.max(totalLongSol * 0.25, 0.5)) flags.push("DELTA_DRIFT");
-  if ((liqBufferPct ?? 0) < 8) flags.push("LOW_LIQ_BUFFER");
+  if ((liqBufferPct ?? 0) < operatorMode.minLiqBufferPct * 100) flags.push("LOW_LIQ_BUFFER");
+  if (operatorMode.monitorCadenceHours === 48) flags.push("LOW_MONITORING");
   if ((perp?.leverage ?? 3) > 4) flags.push("HIGH_LEVERAGE");
   if ((asNum((plans?.regime as JsonObj | undefined)?.fundingAprPct) ?? 0) > 20) flags.push("FUNDING_HEADWIND");
 

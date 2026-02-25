@@ -12,6 +12,7 @@ import { buildRangePlans } from "./range_planner.js";
 import { buildPoolRankings, selectThresholdPools, selectUniversePools } from "./rank_pools.js";
 import { writeOrcaOutputs } from "./write_outputs.js";
 import { runPortfolioEngine } from "../portfolio/engine.js";
+import { normalizeCadenceHours } from "../portfolio/operator_mode.js";
 
 async function main() {
   console.log("[orca] fetching Orca whirlpools...");
@@ -58,7 +59,9 @@ async function main() {
     (poolRankings.topPoolsOverall ?? poolRankings.pools).map((p) => [p.poolAddress, p.spotPrice])
   );
   const rankingByPool = new Map((poolRankings.topPoolsOverall ?? poolRankings.pools).map((p) => [p.poolAddress, p]));
-  const rangePlansWithMeta = buildRangePlans({ shortlist, regime: regimeState, spotByPool, rankingByPool });
+  const monitorCadenceHours = normalizeCadenceHours(Number(process.env.MONITOR_CADENCE_HOURS ?? 24));
+
+  const rangePlansWithMeta = buildRangePlans({ shortlist, regime: regimeState, spotByPool, rankingByPool, monitorCadenceHours });
   const solSpotUsd =
     (poolRankings.topPoolsOverall ?? poolRankings.pools).find((p) => p.type === "SOL-STABLE" && p.spotPrice && p.spotPrice > 1)
       ?.spotPrice ?? undefined;
@@ -68,13 +71,13 @@ async function main() {
       "Range presets are weekly-active heuristics around current spot using regime + pool-type volatility proxies.",
       "Hedges are normalized per $10k deployed and use the fixed funding APR proxy."
     ]
-  }, { solSpotUsd, rankingByPool });
+  }, { solSpotUsd, rankingByPool, monitorCadenceHours });
   console.log(`[orca] built plans for ${plans.plans.length} shortlisted pools`);
 
   const allocation = buildAllocationRecommendation({ regime: regimeState, shortlist, rankings: poolRankings });
   console.log(`[orca] allocation rows ${allocation.allocations.length}`);
 
-  const alerts = buildAlerts({ regime: regimeState, rankings: poolRankings, shortlist, plans });
+  const alerts = buildAlerts({ regime: regimeState, rankings: poolRankings, shortlist, plans, monitorCadenceHours });
   console.log(`[orca] alerts ${alerts.alerts.length}`);
 
   await ensurePerformanceArtifacts();
@@ -92,8 +95,12 @@ async function main() {
   console.log(`[orca] wrote ${out.regimePath}`);
   console.log(`[orca] wrote ${out.rankingsPath}`);
 
-  const portfolioOut = await runPortfolioEngine();
-  console.log(`[portfolio] wrote ${portfolioOut.indexPath} and ${portfolioOut.systemPaths.length} system snapshots`);
+  const [portfolio24, portfolio48] = await Promise.all([
+    runPortfolioEngine({ monitorCadenceHours: 24 }),
+    runPortfolioEngine({ monitorCadenceHours: 48 })
+  ]);
+  await runPortfolioEngine({ monitorCadenceHours, outputBaseDir: "public/data/portfolio" });
+  console.log(`[portfolio] wrote cadence snapshots: 24h=${portfolio24.indexPath}, 48h=${portfolio48.indexPath}`);
 }
 
 main().catch((err) => {

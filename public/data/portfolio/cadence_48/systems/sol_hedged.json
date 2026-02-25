@@ -6,19 +6,20 @@
   "totalShort": 48.952,
   "leverage": null,
   "liqBufferPct": null,
-  "score": 0.7253117380952381,
+  "score": 0.6669784047619047,
   "breakdown": {
-    "delta": 0.8333333333333333,
+    "delta": 0.6666666666666665,
     "hedge": 0.3039085714285714,
     "range": 1,
     "stability": 0.9498166666666666,
-    "weighted": 0.7253117380952381,
+    "weighted": 0.6669784047619047,
     "status": "yellow"
   },
   "riskFlags": [
     "MISSING_DATA",
-    "RANGE_EDGE_WARN",
-    "LOW_LIQ_BUFFER"
+    "RANGE_EDGE_ACTION",
+    "LOW_LIQ_BUFFER",
+    "LOW_MONITORING"
   ],
   "exposures": [
     {
@@ -51,5 +52,5 @@
     "markPrice": 88.69954577,
     "liqBufferPct": null
   },
-  "updatedAt": "2026-02-25T22:35:22.194Z"
+  "updatedAt": "2026-02-25T22:35:22.191Z"
 }

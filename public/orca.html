@@ -261,6 +261,37 @@
       .status-pill.orange { color: #ff9f5a; }
       .status-pill.red { color: var(--danger); }
 
+      .cadence-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px;
+      }
+
+      .cadence-btn {
+        border: 0;
+        border-radius: 999px;
+        padding: 6px 10px;
+        cursor: pointer;
+        color: var(--muted);
+        background: transparent;
+        font-size: 0.78rem;
+      }
+
+      .cadence-btn.active {
+        background: rgba(41, 211, 196, 0.2);
+        color: var(--text);
+      }
+
+      .preset-recommended {
+        border: 1px solid rgba(112, 242, 168, 0.45);
+        border-radius: 8px;
+        padding: 3px 6px;
+        background: rgba(112, 242, 168, 0.08);
+      }
+
       .alert-list {
         display: grid;
         gap: 8px;
@@ -426,7 +457,6 @@
       const ALLOCATION_URL = "/data/orca/allocation.json";
       const ALERTS_URL = "/data/orca/alerts.json";
       const PERFORMANCE_URL = "/data/orca/performance.json";
-      const PORTFOLIO_INDEX_URL = "/data/portfolio/systems_index.json";
       const LIVE_SOL_SPOT_PROXY_URL = "/api/sol-spot";
       const LIVE_SOL_SPOT_URL = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
       const runtimeState = {
@@ -438,6 +468,7 @@
           source: "coingecko",
           error: null
         },
+        monitorCadenceHours: Number(localStorage.getItem("monitorCadenceHours") || 24) === 48 ? 48 : 24,
         livePrices: {
           byMint: {},
           bySymbol: {},
@@ -502,8 +533,78 @@
           .replaceAll(">", "&gt;");
       }
 
+
+      function getOperatorMode(cadenceHours) {
+        if (Number(cadenceHours) === 48) {
+          return {
+            monitorCadenceHours: 48,
+            name: "EVERY_48H",
+            deltaTolerance: 0.15,
+            minLiqBufferPct: 0.2,
+            presetBias: "CONSERVATIVE",
+            warnEdgePct: 0.35,
+            actEdgePct: 0.18
+          };
+        }
+        return {
+          monitorCadenceHours: 24,
+          name: "DAILY",
+          deltaTolerance: 0.3,
+          minLiqBufferPct: 0.12,
+          presetBias: "BASE",
+          warnEdgePct: 0.25,
+          actEdgePct: 0.1
+        };
+      }
+
+      function portfolioIndexUrlForCadence(cadenceHours) {
+        const cadence = Number(cadenceHours) === 48 ? 48 : 24;
+        return `/data/portfolio/cadence_${cadence}/systems_index.json`;
+      }
+
+      function renderCadenceControl() {
+        const cadence = Number(runtimeState.monitorCadenceHours) === 48 ? 48 : 24;
+        return `<div class="cadence-control" role="group" aria-label="Monitoring cadence">
+          <span class="muted" style="font-size:0.78rem; margin-left:6px;">Monitoring cadence</span>
+          <button class="cadence-btn ${cadence === 24 ? "active" : ""}" data-cadence="24" type="button">Daily (24h)</button>
+          <button class="cadence-btn ${cadence === 48 ? "active" : ""}" data-cadence="48" type="button">Every 48h</button>
+        </div>`;
+      }
+
+      function cadenceRangeAlerts(plans) {
+        const mode = getOperatorMode(runtimeState.monitorCadenceHours);
+        const rows = Array.isArray(plans?.plans) ? plans.plans : [];
+        const alerts = [];
+        for (const p of rows) {
+          const preferredLabel = p.recommendedPreset || (mode.presetBias === "CONSERVATIVE" ? "Conservative" : "Base");
+          const preferred = (p.presets || []).find((x) => x.label === preferredLabel) || (p.presets || []).find((x) => x.label === "Base");
+          const half = Number(preferred?.halfWidthPct);
+          if (!Number.isFinite(half) || half <= 0) continue;
+          const distanceToEdgePct = half;
+          if (distanceToEdgePct <= mode.actEdgePct * 100) {
+            alerts.push({
+              id: `cadence-action-${p.poolAddress}`,
+              severity: "critical",
+              kind: "RANGE_EDGE_ACTION",
+              pool: p.pool,
+              message: `${p.pool}: action threshold hit (${fmtNum(distanceToEdgePct, 2)}% <= ${fmtNum(mode.actEdgePct * 100, 2)}%)`
+            });
+          } else if (distanceToEdgePct <= mode.warnEdgePct * 100) {
+            alerts.push({
+              id: `cadence-warn-${p.poolAddress}`,
+              severity: "warn",
+              kind: "RANGE_EDGE_WARN",
+              pool: p.pool,
+              message: `${p.pool}: warning threshold hit (${fmtNum(distanceToEdgePct, 2)}% <= ${fmtNum(mode.warnEdgePct * 100, 2)}%)`
+            });
+          }
+        }
+        return alerts;
+      }
+
       function renderPortfolioSystems(indexData) {
         const systems = Array.isArray(indexData?.systems) ? indexData.systems : [];
+        const mode = getOperatorMode(runtimeState.monitorCadenceHours);
         return `
           <section class="card section">
             <h2>Portfolio Systems</h2>
@@ -524,7 +625,12 @@
                           <div class="k">Liq buffer</div><div>${fmtPct(system.liqBufferPct)}</div>
                         </div>
                         <div class="chips" style="margin-top:8px;">
-                          ${(Array.isArray(system.riskFlags) && system.riskFlags.length ? system.riskFlags : ["NONE"]).map((f) => `<span class="chip">${escapeHtml(f)}</span>`).join("")}
+                          ${(() => {
+                            const flags = Array.isArray(system.riskFlags) ? [...system.riskFlags] : [];
+                            if (mode.monitorCadenceHours === 48 && !flags.includes("LOW_MONITORING")) flags.push("LOW_MONITORING");
+                            if (Number(system.liqBufferPct) <= mode.minLiqBufferPct * 100) flags.push("LOW_LIQ_BUFFER");
+                            return flags.length ? Array.from(new Set(flags)) : ["NONE"];
+                          })().map((f) => `<span class="chip">${escapeHtml(f)}</span>`).join("")}
                         </div>
                       </div>`
                     )
@@ -591,10 +697,13 @@
                   <div class="muted" style="margin-top:8px; font-size:0.82rem;">Regime multiplier: ${fmtNum(p.regimeWidthMultiplier, 2)} (${escapeHtml(plans?.regime?.label || "n/a")})</div>
                   <div style="margin-top:8px; font-size:0.85rem;">
                     ${(p.presets || [])
-                      .map(
-                        (pr) =>
-                          `<div><strong>${pr.label}</strong>: ${fmtNum(pr.lowerPct, 2)}% / +${fmtNum(pr.upperPct, 2)}% ${pr.lowerPrice != null && pr.upperPrice != null ? `<span class="muted">(${fmtNum(pr.lowerPrice, 6)} - ${fmtNum(pr.upperPrice, 6)})</span>` : ""}</div>`
-                      )
+                      .map((pr) => {
+                        const mode = getOperatorMode(runtimeState.monitorCadenceHours);
+                        const preferred = p.recommendedPreset || (mode.presetBias === "CONSERVATIVE" ? "Conservative" : "Base");
+                        const cls = pr.label === preferred ? "preset-recommended" : "";
+                        const tag = pr.label === preferred ? ` <span class="chip">Recommended</span>` : "";
+                        return `<div class="${cls}"><strong>${pr.label}</strong>${tag}: ${fmtNum(pr.lowerPct, 2)}% / +${fmtNum(pr.upperPct, 2)}% ${pr.lowerPrice != null && pr.upperPrice != null ? `<span class="muted">(${fmtNum(pr.lowerPrice, 6)} - ${fmtNum(pr.upperPrice, 6)})</span>` : ""}</div>`;
+                      })
                       .join("")}
                   </div>
                   <div style="margin-top:8px; font-size:0.85rem;">
@@ -617,7 +726,9 @@
       }
 
       function renderAlerts(alerts) {
-        const rows = Array.isArray(alerts?.alerts) ? alerts.alerts : [];
+        const rows = Array.isArray(alerts?.alerts) ? [...alerts.alerts] : [];
+        const extra = cadenceRangeAlerts(runtimeState.latestData?.plans);
+        rows.push(...extra);
         return `
           <section class="card section">
             <h2>Alerts</h2>
@@ -1241,7 +1352,10 @@
                 <span>${regime.regime || "UNKNOWN"}</span>
                 <span class="muted">confidence ${fmtNum((Number(regime.confidence) || 0) * 100, 0)}%</span>
               </div>
-              <div class="muted">Score ${fmtNum(regime.score, 3)}</div>
+              <div class="row">
+                <div class="muted">Score ${fmtNum(regime.score, 3)}</div>
+                ${renderCadenceControl()}
+              </div>
             </div>
             <div class="metrics">
               <div class="metric"><div class="label">vol7d</div><div class="value">${fmtPct(metrics.vol7dPct)}</div></div>
@@ -1318,6 +1432,15 @@
         const liqSection = app.querySelector('[id^="liq-buffer-"]');
         mountDeployCalculator(deploySection, allocation, plans);
         mountLiqBuffer(liqSection, deploySection, plans);
+
+        app.querySelectorAll("[data-cadence]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const cadence = Number(btn.getAttribute("data-cadence")) === 48 ? 48 : 24;
+            runtimeState.monitorCadenceHours = cadence;
+            localStorage.setItem("monitorCadenceHours", String(cadence));
+            load({ manual: true, cacheBust: true });
+          });
+        });
       }
 
       async function fetchJson(url, cacheBustTs) {
@@ -1349,7 +1472,7 @@
             fetchJson(ALLOCATION_URL, cacheBustTs).catch(() => ({ allocations: [], rationale: [] })),
             fetchJson(ALERTS_URL, cacheBustTs).catch(() => ({ alerts: [] })),
             fetchJson(PERFORMANCE_URL, cacheBustTs).catch(() => ({ summary: { snapshotCount: 0, regimeCounts: { LOW: 0, MODERATE: 0, HIGH: 0 } } })),
-            fetchJson(PORTFOLIO_INDEX_URL, cacheBustTs).catch(() => ({ systems: [] }))
+            fetchJson(portfolioIndexUrlForCadence(runtimeState.monitorCadenceHours), cacheBustTs).catch(() => ({ systems: [] }))
           ]);
           runtimeState.latestData = { regime, pools, shortlist, plans, allocation, alerts, performance, portfolio };
           refreshDerivedLivePrices();
