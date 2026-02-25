@@ -11,6 +11,7 @@ import { appendPoolStatsSnapshot, computePoolStabilityMetrics } from "./pool_sta
 import { buildRangePlans } from "./range_planner.js";
 import { buildPoolRankings, selectThresholdPools, selectUniversePools } from "./rank_pools.js";
 import { writeOrcaOutputs } from "./write_outputs.js";
+import { runPortfolioEngine } from "../portfolio/engine.js";
 
 async function main() {
   console.log("[orca] fetching Orca whirlpools...");
@@ -90,6 +91,9 @@ async function main() {
   });
   console.log(`[orca] wrote ${out.regimePath}`);
   console.log(`[orca] wrote ${out.rankingsPath}`);
+
+  const portfolioOut = await runPortfolioEngine();
+  console.log(`[portfolio] wrote ${portfolioOut.indexPath} and ${portfolioOut.systemPaths.length} system snapshots`);
 }
 
 main().catch((err) => {

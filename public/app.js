@@ -34,6 +34,7 @@ let betaLastKey = "";
 let latestWallet = "";
 let latestSummary = null;
 let latestFullPositions = null;
+let latestPortfolioSystems = null;
 let fullPositionsLoadPromise = null;
 
 const HEDGE_LINKS = [
@@ -833,6 +834,18 @@ function renderHedge(summary, fullPositions) {
   `;
 }
 
+function renderPortfolioSystemsInline() {
+  const systems = Array.isArray(latestPortfolioSystems?.systems) ? latestPortfolioSystems.systems : [];
+  if (!systems.length) return `<div class="table-note">Portfolio systems: unavailable.</div>`;
+  return `<div class="table-note">Portfolio systems: ${systems
+    .map((s) => {
+      const score = Number(s?.score);
+      const status = String(s?.status ?? "red").toUpperCase();
+      return `${s?.label ?? s?.id}: ${Number.isFinite(score) ? (score * 100).toFixed(1) : "n/a"} (${status})`;
+    })
+    .join(" | ")}</div>`;
+}
+
 function render(summary, fullPositions) {
   renderHedgeQuick(summary, fullPositions);
   const perpsPnl = Number(summary?.jupiterPerps?.summary?.pnlUsd ?? 0);
@@ -1126,6 +1139,7 @@ function render(summary, fullPositions) {
         </tr>
       </tbody>
     </table>
+    ${renderPortfolioSystemsInline()}
     <div class="collapse-actions">
       <button id="collapseToggleBtn" type="button">Expand all</button>
     </div>
@@ -1539,13 +1553,20 @@ async function loadSummary() {
   }
 
   try {
-    const summaryRes = await fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`);
+    const [summaryRes, portfolioRes] = await Promise.all([
+      fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`),
+      fetch(`/data/portfolio/systems_index.json`).catch(() => null)
+    ]);
     if (!summaryRes.ok) {
       const body = await summaryRes.json().catch(() => ({}));
       throw new Error(body.error || `Request failed (${summaryRes.status})`);
     }
     const summary = await summaryRes.json();
     latestSummary = summary;
+
+    if (portfolioRes && portfolioRes.ok) {
+      latestPortfolioSystems = await portfolioRes.json().catch(() => null);
+    }
 
     render(summary, latestFullPositions);
     statusEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;

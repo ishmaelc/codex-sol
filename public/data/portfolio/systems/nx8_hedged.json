@@ -1,0 +1,23 @@
+{
+  "id": "nx8_hedged",
+  "label": "NX8 Hedged Yield System",
+  "netDelta": 0,
+  "totalLong": 0,
+  "totalShort": 0,
+  "leverage": 2.5,
+  "liqBufferPct": 12,
+  "score": 0.6889582142857142,
+  "breakdown": {
+    "delta": 1,
+    "hedge": 0.5882857142857143,
+    "range": 0.1,
+    "stability": 0.9498166666666666,
+    "weighted": 0.6889582142857142,
+    "status": "yellow"
+  },
+  "riskFlags": [
+    "PROXY_HEDGE",
+    "MISSING_DATA"
+  ],
+  "updatedAt": "2026-02-25T21:38:37.920Z"
+}

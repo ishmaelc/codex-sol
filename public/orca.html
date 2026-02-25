@@ -238,6 +238,29 @@
         color: var(--muted);
       }
 
+
+      .portfolio-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 10px;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        border: 1px solid var(--line);
+      }
+
+      .status-pill.green { color: var(--ok); }
+      .status-pill.yellow { color: var(--warn); }
+      .status-pill.orange { color: #ff9f5a; }
+      .status-pill.red { color: var(--danger); }
+
       .alert-list {
         display: grid;
         gap: 8px;
@@ -403,6 +426,7 @@
       const ALLOCATION_URL = "/data/orca/allocation.json";
       const ALERTS_URL = "/data/orca/alerts.json";
       const PERFORMANCE_URL = "/data/orca/performance.json";
+      const PORTFOLIO_INDEX_URL = "/data/portfolio/systems_index.json";
       const LIVE_SOL_SPOT_PROXY_URL = "/api/sol-spot";
       const LIVE_SOL_SPOT_URL = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
       const runtimeState = {
@@ -476,6 +500,37 @@
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
           .replaceAll(">", "&gt;");
+      }
+
+      function renderPortfolioSystems(indexData) {
+        const systems = Array.isArray(indexData?.systems) ? indexData.systems : [];
+        return `
+          <section class="card section">
+            <h2>Portfolio Systems</h2>
+            ${
+              systems.length === 0
+                ? `<div class="muted">No portfolio system snapshots available yet.</div>`
+                : `<div class="portfolio-grid">${systems
+                    .map(
+                      (system) => `<div class="mini-card">
+                        <h3>${escapeHtml(system.label || system.id || "System")}</h3>
+                        <div class="chips">
+                          <span class="chip">Score ${fmtNum((Number(system.score) || 0) * 100, 1)}</span>
+                          <span class="status-pill ${escapeHtml(system.status || "red")}">${escapeHtml(String(system.status || "red").toUpperCase())}</span>
+                        </div>
+                        <div class="kv" style="margin-top:8px">
+                          <div class="k">Net delta</div><div>${fmtNum(system.netDelta, 4)}</div>
+                          <div class="k">Leverage</div><div>${fmtNum(system.leverage, 2)}</div>
+                          <div class="k">Liq buffer</div><div>${fmtPct(system.liqBufferPct)}</div>
+                        </div>
+                        <div class="chips" style="margin-top:8px;">
+                          ${(Array.isArray(system.riskFlags) && system.riskFlags.length ? system.riskFlags : ["NONE"]).map((f) => `<span class="chip">${escapeHtml(f)}</span>`).join("")}
+                        </div>
+                      </div>`
+                    )
+                    .join("")}</div>`
+            }
+          </section>`;
       }
 
       function renderShortlist(shortlist) {
@@ -1164,7 +1219,7 @@
           </section>`;
       }
 
-      function render(regime, pools, shortlist, plans, allocation, alerts, performance) {
+      function render(regime, pools, shortlist, plans, allocation, alerts, performance, portfolio) {
         const app = document.getElementById("app");
         const updatedAt = document.getElementById("updatedAt");
         const status = document.getElementById("status");
@@ -1204,6 +1259,7 @@
             </div>
           </section>
 
+          ${renderPortfolioSystems(portfolio)}
           ${renderShortlist(shortlist)}
           ${renderPlans(plans)}
           ${renderAllocation(allocation)}
@@ -1285,19 +1341,20 @@
           refreshBtn.textContent = "Refreshing...";
         }
         try {
-          const [regime, pools, shortlist, plans, allocation, alerts, performance] = await Promise.all([
+          const [regime, pools, shortlist, plans, allocation, alerts, performance, portfolio] = await Promise.all([
             fetchJson(REGIME_URL, cacheBustTs),
             fetchJson(POOLS_URL, cacheBustTs),
             fetchJson(SHORTLIST_URL, cacheBustTs).catch(() => ({ selected: [], maxPools: 2 })),
             fetchJson(PLANS_URL, cacheBustTs).catch(() => ({ plans: [] })),
             fetchJson(ALLOCATION_URL, cacheBustTs).catch(() => ({ allocations: [], rationale: [] })),
             fetchJson(ALERTS_URL, cacheBustTs).catch(() => ({ alerts: [] })),
-            fetchJson(PERFORMANCE_URL, cacheBustTs).catch(() => ({ summary: { snapshotCount: 0, regimeCounts: { LOW: 0, MODERATE: 0, HIGH: 0 } } }))
+            fetchJson(PERFORMANCE_URL, cacheBustTs).catch(() => ({ summary: { snapshotCount: 0, regimeCounts: { LOW: 0, MODERATE: 0, HIGH: 0 } } })),
+            fetchJson(PORTFOLIO_INDEX_URL, cacheBustTs).catch(() => ({ systems: [] }))
           ]);
-          runtimeState.latestData = { regime, pools, shortlist, plans, allocation, alerts, performance };
+          runtimeState.latestData = { regime, pools, shortlist, plans, allocation, alerts, performance, portfolio };
           refreshDerivedLivePrices();
           renderLiveSpotHeader();
-          render(regime, pools, shortlist, plans, allocation, alerts, performance);
+          render(regime, pools, shortlist, plans, allocation, alerts, performance, portfolio);
         } catch (err) {
           const msg = String(err && err.message ? err.message : err);
           if (manual && refreshErr) {
