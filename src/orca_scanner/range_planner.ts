@@ -1,4 +1,4 @@
-import type { PlansOutput, PoolPlan, RangePreset, RegimeState, ShortlistOutput } from "./types.js";
+import type { PlansOutput, PoolPlan, RangePreset, RankedPool, RegimeState, ShortlistOutput } from "./types.js";
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
@@ -72,15 +72,37 @@ function buildPresets(
   });
 }
 
-export function buildRangePlans(args: { shortlist: ShortlistOutput; regime: RegimeState; spotByPool: Map<string, number | undefined> }): Omit<PlansOutput, "notes"> {
+export function buildRangePlans(args: {
+  shortlist: ShortlistOutput;
+  regime: RegimeState;
+  spotByPool: Map<string, number | undefined>;
+  rankingByPool?: Map<string, RankedPool>;
+}): Omit<PlansOutput, "notes"> {
   const widthMult = regimeWidthMultiplier(args.regime.regime);
   const plans: PoolPlan[] = args.shortlist.selected.map((s) => {
     const volProxy = volProxyByType(s.type, args.regime);
     const spot = args.spotByPool.get(s.poolAddress);
+    const row = args.rankingByPool?.get(s.poolAddress);
     return {
       poolAddress: s.poolAddress,
       pool: s.pool,
       type: s.type,
+      tokenA:
+        row?.tokenSymbols?.[0]
+          ? {
+              mint: String((row).tokenMints?.[0] ?? ""),
+              symbol: String(row.tokenSymbols[0] ?? ""),
+              decimals: row.tokenDecimals?.[0]
+            }
+          : undefined,
+      tokenB:
+        row?.tokenSymbols?.[1]
+          ? {
+              mint: String((row).tokenMints?.[1] ?? ""),
+              symbol: String(row.tokenSymbols[1] ?? ""),
+              decimals: row.tokenDecimals?.[1]
+            }
+          : undefined,
       spotPrice: spot,
       volatilityProxyPctAnnual: Number(volProxy.toFixed(2)),
       regimeWidthMultiplier: widthMult,

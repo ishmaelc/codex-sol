@@ -1,6 +1,6 @@
 import type { PoolRankingOutput, RankedPool, RegimeState, ShortlistDecisionReason, ShortlistItem, ShortlistOutput } from "./types.js";
 
-const SHORTLIST_MAX = 2 as const;
+const SHORTLIST_MAX = 1 as const;
 const MIN_DEPTH_TVL_1PCT_RATIO = 0.015;
 const MIN_TVL_USD = 150_000;
 const MIN_VOLUME_24H_USD = 75_000;

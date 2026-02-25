@@ -150,6 +150,7 @@ export function buildPoolRankings(args: {
         explanation: scored.explanation,
         validatedOnchain: Boolean(onchain?.validated),
         tokenSymbols: [pool.tokenA.symbol, pool.tokenB.symbol] as [string, string],
+        tokenMints: [pool.tokenA.address, pool.tokenB.address] as [string, string],
         tokenDecimals:
           pool.tokenA.decimals != null && pool.tokenB.decimals != null
             ? ([pool.tokenA.decimals, pool.tokenB.decimals] as [number, number])

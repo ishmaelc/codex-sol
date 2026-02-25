@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T03:11:25.366Z",
+  "generatedAt": "2026-02-25T04:28:29.398Z",
   "regime": "LOW",
   "maxPools": 2,
   "allocations": [
@@ -7,19 +7,12 @@
       "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
       "pool": "SOL/USDC",
       "type": "SOL-STABLE",
-      "weightPct": 54,
-      "rationale": "Type-neutral allocation: weights derived from relative scores."
-    },
-    {
-      "poolAddress": "9VuCJupdVXC1kKijULJQ2GPKPvk2kSMHtgvwDuQq3TDo",
-      "pool": "SOL/USDC",
-      "type": "SOL-STABLE",
-      "weightPct": 46,
+      "weightPct": 100,
       "rationale": "Type-neutral allocation: weights derived from relative scores."
     }
   ],
   "rationale": [
-    "Type-neutral allocation: weights derived from relative scores."
+    "Only one pool qualified; allocate 100% to the sole shortlist pool."
   ],
   "notes": [
     "Allocation is a recommendation layer on top of the shortlist, capped at 2 pools."

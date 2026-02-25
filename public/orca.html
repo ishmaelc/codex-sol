@@ -372,9 +372,9 @@
         <h1>Orca Regime + Pool Rankings</h1>
         <div class="header-right">
           <button id="refreshBtn" class="btn" type="button">Refresh</button>
-          <button id="refreshLiveSpotBtn" class="btn" type="button">Refresh Live Spot</button>
+          <button id="refreshLiveSpotBtn" class="btn" type="button">Refresh Live Prices</button>
           <div id="liveSpotCard" class="header-pill">
-            <div class="title">Live SOL Spot</div>
+            <div class="title">Live Prices</div>
             <div class="value" id="liveSpotValue">Loading...</div>
             <div class="muted" id="liveSpotUpdated" style="font-size:0.75rem;"></div>
             <div class="muted" id="liveSpotError" style="font-size:0.75rem; color:#ffd0d0;"></div>
@@ -406,8 +406,19 @@
           updatedAt: null,
           source: "coingecko",
           error: null
+        },
+        livePrices: {
+          byMint: {},
+          bySymbol: {},
+          updatedAt: null,
+          error: null
         }
       };
+      const STABLE_SYMBOLS = new Set(["USDC", "USDT", "USDG", "USDE", "DAI", "USDS", "USD1", "PYUSD", "ONYC"]);
+      const KNOWN_STABLE_MINTS = new Set([
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "Es9vMFrzaCER7h3Yb9g4Z1cdq9VHtV6nRvWmvMRGsiE"
+      ]);
 
       function fmtUsd(v) {
         const n = Number(v);
@@ -435,6 +446,18 @@
         if (!v) return "n/a";
         const d = new Date(v);
         return Number.isNaN(d.getTime()) ? "n/a" : d.toLocaleTimeString();
+      }
+
+      function normSymbol(s) {
+        return String(s || "").replace(/[^a-z0-9]/gi, "").toUpperCase();
+      }
+
+      function displayTokenAmount(amount, symbol, decimals, priceUsd) {
+        const n = Number(amount);
+        if (!Number.isFinite(n)) return "—";
+        const stable = (Number.isFinite(Number(priceUsd)) && Math.abs(Number(priceUsd) - 1) < 0.05) || STABLE_SYMBOLS.has(normSymbol(symbol));
+        const maxFrac = stable ? 2 : Number(decimals) >= 9 ? 6 : 4;
+        return `${n.toLocaleString(undefined, { maximumFractionDigits: maxFrac })} ${symbol || ""}`.trim();
       }
 
       function regimeClass(label) {
@@ -589,6 +612,7 @@
         const lev = Number.isFinite(Number(leverageX)) && Number(leverageX) > 0 ? Number(leverageX) : 2.5;
         const buffer = Math.max(0, Math.min(100, Number(bufferPct || 0)));
         const bufferMultiplier = 1 + buffer / 100;
+        const priceUSDByMint = runtimeState.livePrices?.byMint || {};
         const liveSpot = Number(runtimeState.liveSpot?.priceUsd);
         const hasLiveSpot = Number.isFinite(liveSpot) && liveSpot > 0;
         const rows = allocs.map((a) => {
@@ -603,6 +627,22 @@
           if (!hasLiveSpot && !hasHedgeSolFallback) warnings.push(`Missing live spot and hedge SOL fallback for ${a.pool}`);
           const hedgeUsd = hasHedgeUsd ? (rawAlloc / 10000) * hedgeUsdPer10k : null;
           const hedgeSol = hedgeUsd != null && hasLiveSpot ? hedgeUsd / liveSpot : hasHedgeSolFallback ? (rawAlloc / 10000) * hedgeSolPer10k : null;
+          const tokenA = plan?.tokenA || null;
+          const tokenB = plan?.tokenB || null;
+          const ratioA = Number(plan?.hedge?.depositRatioTokenARatioUSD);
+          const ratioB = Number(plan?.hedge?.depositRatioTokenBRatioUSD);
+          const priceAUSD = tokenA?.mint ? Number(priceUSDByMint[tokenA.mint]) : NaN;
+          const priceBUSD = tokenB?.mint ? Number(priceUSDByMint[tokenB.mint]) : NaN;
+          let depositAmtA = null;
+          let depositAmtB = null;
+          if (!(Number.isFinite(ratioA) && Number.isFinite(ratioB))) {
+            warnings.push(`Missing deposit ratio for ${a.pool}; cannot compute deposit amounts.`);
+          } else {
+            if (Number.isFinite(priceAUSD) && priceAUSD > 0) depositAmtA = (rawAlloc * ratioA) / priceAUSD;
+            else warnings.push(`Missing USD price for ${tokenA?.symbol || "Token A"}; cannot compute deposit amount.`);
+            if (Number.isFinite(priceBUSD) && priceBUSD > 0) depositAmtB = (rawAlloc * ratioB) / priceBUSD;
+            else warnings.push(`Missing USD price for ${tokenB?.symbol || "Token B"}; cannot compute deposit amount.`);
+          }
           return {
             poolAddress: a.poolAddress,
             pool: a.pool,
@@ -611,7 +651,15 @@
             hedgeUsd,
             hedgeSol,
             collateralUsd: hedgeUsd != null ? hedgeUsd / lev : null,
-            collateralBufferedUsd: hedgeUsd != null ? (hedgeUsd / lev) * bufferMultiplier : null
+            collateralBufferedUsd: hedgeUsd != null ? (hedgeUsd / lev) * bufferMultiplier : null,
+            tokenA,
+            tokenB,
+            depositRatioA: Number.isFinite(ratioA) ? ratioA : null,
+            depositRatioB: Number.isFinite(ratioB) ? ratioB : null,
+            priceAUSD: Number.isFinite(priceAUSD) ? priceAUSD : null,
+            priceBUSD: Number.isFinite(priceBUSD) ? priceBUSD : null,
+            depositAmtA,
+            depositAmtB
           };
         });
 
@@ -633,6 +681,16 @@
               r.collateralUsd = r.hedgeUsd / lev;
               r.collateralBufferedUsd = r.collateralUsd * bufferMultiplier;
             }
+            const priceAUSD = r.tokenA?.mint ? Number(priceUSDByMint[r.tokenA.mint]) : NaN;
+            const priceBUSD = r.tokenB?.mint ? Number(priceUSDByMint[r.tokenB.mint]) : NaN;
+            if (Number.isFinite(r.depositRatioA) && Number.isFinite(priceAUSD) && priceAUSD > 0) {
+              r.priceAUSD = priceAUSD;
+              r.depositAmtA = (r.allocUsd * r.depositRatioA) / priceAUSD;
+            }
+            if (Number.isFinite(r.depositRatioB) && Number.isFinite(priceBUSD) && priceBUSD > 0) {
+              r.priceBUSD = priceBUSD;
+              r.depositAmtB = (r.allocUsd * r.depositRatioB) / priceBUSD;
+            }
           }
         }
 
@@ -642,6 +700,31 @@
         const totalCollateralBase = rows.reduce((a, r) => a + (Number.isFinite(r.collateralUsd) ? r.collateralUsd : 0), 0);
         const totalCollateralBuffered = rows.reduce((a, r) => a + (Number.isFinite(r.collateralBufferedUsd) ? r.collateralBufferedUsd : 0), 0);
         const totalCapitalRequired = totalAllocation + totalCollateralBuffered;
+        const tokenTotalsMap = new Map();
+        for (const r of rows) {
+          if (r.tokenA?.mint && Number.isFinite(r.depositAmtA)) {
+            const t = tokenTotalsMap.get(r.tokenA.mint) ?? {
+              mint: r.tokenA.mint,
+              symbol: r.tokenA.symbol,
+              decimals: r.tokenA.decimals,
+              priceUSD: r.priceAUSD,
+              amount: 0
+            };
+            t.amount += r.depositAmtA;
+            tokenTotalsMap.set(r.tokenA.mint, t);
+          }
+          if (r.tokenB?.mint && Number.isFinite(r.depositAmtB)) {
+            const t = tokenTotalsMap.get(r.tokenB.mint) ?? {
+              mint: r.tokenB.mint,
+              symbol: r.tokenB.symbol,
+              decimals: r.tokenB.decimals,
+              priceUSD: r.priceBUSD,
+              amount: 0
+            };
+            t.amount += r.depositAmtB;
+            tokenTotalsMap.set(r.tokenB.mint, t);
+          }
+        }
         return {
           rows,
           warnings,
@@ -651,13 +734,14 @@
           totalCollateralBase,
           totalCollateralBuffered,
           totalCapitalRequired,
+          tokenTotals: [...tokenTotalsMap.values()],
           bufferMultiplier
         };
       }
 
       function calcSpotForLiquidation(plans) {
         const live = Number(runtimeState.liveSpot?.priceUsd);
-        if (Number.isFinite(live) && live > 0) return { spot: live, label: "live SOL spot" };
+        if (Number.isFinite(live) && live > 0) return { spot: live, label: "live prices (SOL)" };
         const spots = (Array.isArray(plans?.plans) ? plans.plans : [])
           .map((p) => Number(p?.spotPrice))
           .filter((x) => Number.isFinite(x) && x > 0);
@@ -725,6 +809,7 @@
               Hedge sizing derived from plan hedge per $10k and scaled to your total deployment; assumes SHORT_SOL.
               <br/>Collateral = hedge notional / leverage; excludes buffer and fees. Recommended to add safety buffer.
               <br/>Collateral assumes fixed leverage and does not account for funding, fees, or rapid price gaps. Maintain additional margin if volatility increases.
+              <br/>Deposit amounts use current deposit ratio and live USD prices; final required amounts may vary due to liquidity slippage and price movement.
             </div>
           </section>`;
       }
@@ -778,6 +863,8 @@
                   <th>Allocation USD</th>
                   <th>Hedge USD</th>
                   <th>Hedge SOL</th>
+                  <th>Deposit Token A</th>
+                  <th>Deposit Token B</th>
                   <th>Collateral (${fmtNum(leverageX, 2)}x)</th>
                   <th>Collateral w/ Buffer</th>
                 </tr>
@@ -791,6 +878,8 @@
                       <td>${fmtUsd(r.allocUsd)}</td>
                       <td>${Number.isFinite(r.hedgeUsd) ? fmtUsd(r.hedgeUsd) : "—"}</td>
                       <td>${Number.isFinite(r.hedgeSol) ? fmtNum(r.hedgeSol, 4) : "—"}</td>
+                      <td>${displayTokenAmount(r.depositAmtA, r.tokenA?.symbol, r.tokenA?.decimals, r.priceAUSD)}</td>
+                      <td>${displayTokenAmount(r.depositAmtB, r.tokenB?.symbol, r.tokenB?.decimals, r.priceBUSD)}</td>
                       <td>${Number.isFinite(r.collateralUsd) ? fmtUsd(r.collateralUsd) : "—"}</td>
                       <td>${Number.isFinite(r.collateralBufferedUsd) ? fmtUsd(r.collateralBufferedUsd) : "—"}</td>
                     </tr>`
@@ -808,6 +897,17 @@
                 <div class="k">Total Collateral (Buffered)</div><div><strong>${fmtUsd(calc.totalCollateralBuffered)}</strong> <span class="muted">(${fmtNum((calc.bufferMultiplier - 1) * 100, 0)}% buffer)</span></div>
                 <div class="k">Total Capital Required</div><div><strong>${fmtUsd(calc.totalCapitalRequired)}</strong></div>
               </div>
+            </div>`;
+          out.innerHTML += `
+            <div class="mini-card" style="margin-top:10px;">
+              <div class="muted" style="margin-bottom:6px;">Token Totals</div>
+              ${
+                Array.isArray(calc.tokenTotals) && calc.tokenTotals.length
+                  ? calc.tokenTotals
+                      .map((t) => `<div>${escapeHtml(t.symbol || t.mint)}: <strong>${displayTokenAmount(t.amount, t.symbol, t.decimals, t.priceUSD)}</strong></div>`)
+                      .join("")
+                  : `<div class="muted">No token totals available.</div>`
+              }
             </div>`;
           };
 
@@ -894,15 +994,91 @@
         renderLiq();
       }
 
+      function getStableFallbackPrice(token) {
+        if (!token) return null;
+        if (STABLE_SYMBOLS.has(normSymbol(token.symbol))) return 1;
+        if (token.mint && KNOWN_STABLE_MINTS.has(String(token.mint))) return 1;
+        return null;
+      }
+
+      function buildLivePriceMapFromPlans(plans) {
+        const byMint = {};
+        const bySymbol = {};
+        const rows = Array.isArray(plans?.plans) ? plans.plans : [];
+        const tokens = [];
+        for (const p of rows) {
+          if (p?.tokenA?.mint) tokens.push(p.tokenA);
+          if (p?.tokenB?.mint) tokens.push(p.tokenB);
+        }
+
+        for (const t of tokens) {
+          const stable = getStableFallbackPrice(t);
+          if (stable != null) {
+            byMint[t.mint] = stable;
+            bySymbol[t.symbol] = stable;
+          }
+        }
+
+        const liveSol = Number(runtimeState.liveSpot?.priceUsd);
+        if (Number.isFinite(liveSol) && liveSol > 0) {
+          for (const t of tokens) {
+            const s = normSymbol(t.symbol);
+            if (s === "SOL" || s === "WSOL") {
+              byMint[t.mint] = liveSol;
+              bySymbol[t.symbol] = liveSol;
+            }
+          }
+        }
+
+        let changed = true;
+        for (let i = 0; i < 8 && changed; i += 1) {
+          changed = false;
+          for (const p of rows) {
+            const a = p?.tokenA;
+            const b = p?.tokenB;
+            const spot = Number(p?.spotPrice);
+            if (!a?.mint || !b?.mint || !(Number.isFinite(spot) && spot > 0)) continue;
+            const pa = Number(byMint[a.mint]);
+            const pb = Number(byMint[b.mint]);
+            if (Number.isFinite(pa) && pa > 0 && !(Number.isFinite(pb) && pb > 0)) {
+              byMint[b.mint] = pa / spot; // spot is tokenB per tokenA
+              bySymbol[b.symbol] = pa / spot;
+              changed = true;
+            } else if (Number.isFinite(pb) && pb > 0 && !(Number.isFinite(pa) && pa > 0)) {
+              byMint[a.mint] = spot * pb;
+              bySymbol[a.symbol] = spot * pb;
+              changed = true;
+            }
+          }
+        }
+
+        return { byMint, bySymbol };
+      }
+
+      function refreshDerivedLivePrices() {
+        const plans = runtimeState.latestData?.plans;
+        const derived = buildLivePriceMapFromPlans(plans);
+        runtimeState.livePrices.byMint = derived.byMint;
+        runtimeState.livePrices.bySymbol = derived.bySymbol;
+        runtimeState.livePrices.updatedAt = runtimeState.liveSpot.updatedAt ?? new Date().toISOString();
+        runtimeState.livePrices.error = runtimeState.liveSpot.error ?? null;
+      }
+
       function renderLiveSpotHeader() {
         const valueEl = document.getElementById("liveSpotValue");
         const updatedEl = document.getElementById("liveSpotUpdated");
         const errEl = document.getElementById("liveSpotError");
         if (!valueEl || !updatedEl || !errEl) return;
-        const price = Number(runtimeState.liveSpot?.priceUsd);
-        valueEl.textContent = Number.isFinite(price) && price > 0 ? fmtUsd(price) : "Unavailable";
-        updatedEl.textContent = `Live spot updated: ${fmtTime(runtimeState.liveSpot?.updatedAt)}`;
-        errEl.textContent = runtimeState.liveSpot?.error ? `Live spot error: ${runtimeState.liveSpot.error}` : "";
+        const entries = Object.entries(runtimeState.livePrices?.bySymbol || {})
+          .filter(([, v]) => Number.isFinite(Number(v)) && Number(v) > 0)
+          .sort(([a], [b]) => a.localeCompare(b));
+        if (entries.length === 0) {
+          valueEl.textContent = "Unavailable";
+        } else {
+          valueEl.innerHTML = entries.slice(0, 8).map(([sym, px]) => `${escapeHtml(sym)} ${fmtUsd(px)}`).join("<br/>");
+        }
+        updatedEl.textContent = `Live prices updated: ${fmtTime(runtimeState.livePrices?.updatedAt || runtimeState.liveSpot?.updatedAt)}`;
+        errEl.textContent = runtimeState.liveSpot?.error ? `Live prices error: ${runtimeState.liveSpot.error}` : "";
       }
 
       async function fetchLiveSolSpot() {
@@ -945,6 +1121,7 @@
           runtimeState.liveSpot.priceUsd = price;
           runtimeState.liveSpot.updatedAt = new Date().toISOString();
           runtimeState.liveSpot.error = null;
+          refreshDerivedLivePrices();
           renderLiveSpotHeader();
           const app = document.getElementById("app");
           const liqSection = app?.querySelector?.('[id^="liq-buffer-"]');
@@ -956,11 +1133,12 @@
           }
         } catch (err) {
           runtimeState.liveSpot.error = String(err && err.message ? err.message : err);
+          refreshDerivedLivePrices();
           renderLiveSpotHeader();
         } finally {
           if (btn) {
             btn.disabled = false;
-            btn.textContent = "Refresh Live Spot";
+            btn.textContent = "Refresh Live Prices";
           }
         }
       }
@@ -1110,6 +1288,8 @@
             fetchJson(PERFORMANCE_URL, cacheBustTs).catch(() => ({ summary: { snapshotCount: 0, regimeCounts: { LOW: 0, MODERATE: 0, HIGH: 0 } } }))
           ]);
           runtimeState.latestData = { regime, pools, shortlist, plans, allocation, alerts, performance };
+          refreshDerivedLivePrices();
+          renderLiveSpotHeader();
           render(regime, pools, shortlist, plans, allocation, alerts, performance);
         } catch (err) {
           const msg = String(err && err.message ? err.message : err);

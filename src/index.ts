@@ -4,6 +4,20 @@ import { address, createSolanaRpc } from "@solana/kit";
 import { Decimal } from "decimal.js";
 import { Farms } from "@kamino-finance/farms-sdk";
 import { Kamino } from "@kamino-finance/kliquidity-sdk";
+import {
+  fetchMaybePosition as fetchOrcaMaybePosition,
+  fetchMaybeWhirlpool as fetchOrcaMaybeWhirlpool,
+  getPositionAddress as getOrcaPositionAddress
+} from "@orca-so/whirlpools-client";
+import {
+  positionRatio as orcaPositionRatio,
+  positionStatus as orcaPositionStatus,
+  sqrtPriceToPrice as orcaSqrtPriceToPrice,
+  tickIndexToPrice as orcaTickIndexToPrice,
+  tickIndexToSqrtPrice as orcaTickIndexToSqrtPrice,
+  tryGetAmountDeltaA as orcaTryGetAmountDeltaA,
+  tryGetAmountDeltaB as orcaTryGetAmountDeltaB
+} from "@orca-so/whirlpools-core";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
@@ -44,6 +58,7 @@ type WalletPositions = {
   jupiterPerps: ProtocolFetchResult;
   kaminoLend: ProtocolFetchResult;
   kaminoLiquidity: ProtocolFetchResult;
+  orcaWhirlpools: ProtocolFetchResult;
 };
 
 type OutputMode = "full" | "summary";
@@ -1450,6 +1465,536 @@ async function getSpotPositions(connection: Connection, wallet: PublicKey) {
   };
 }
 
+async function getMintDecimals(connection: Connection, mint: string): Promise<number | null> {
+  if (mint === "So11111111111111111111111111111111111111112") return 9;
+  const known = KNOWN_TOKEN_DECIMALS[mint];
+  if (typeof known === "number") return known;
+  try {
+    const info = await connection.getParsedAccountInfo(new PublicKey(mint), "confirmed");
+    const data = (info.value as any)?.data;
+    const decimals = Number(data?.parsed?.info?.decimals ?? NaN);
+    return Number.isFinite(decimals) ? decimals : null;
+  } catch {
+    return null;
+  }
+}
+
+function bigintToUi(raw: bigint, decimals: number | null): number | null {
+  if (decimals == null) return null;
+  const s = raw.toString();
+  const neg = s.startsWith("-");
+  const digits = neg ? s.slice(1) : s;
+  const d = Math.max(0, decimals);
+  if (d === 0) return Number(`${neg ? "-" : ""}${digits}`);
+  const padded = digits.padStart(d + 1, "0");
+  const whole = padded.slice(0, -d);
+  const frac = padded.slice(-d).replace(/0+$/, "");
+  const out = `${neg ? "-" : ""}${whole}${frac ? `.${frac}` : ""}`;
+  const n = Number(out);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toNumLoose(value: unknown, fallback = 0): number {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function annualizeWindowYieldPct(yieldOverTvl: number | null, windowDays: number): number | null {
+  if (yieldOverTvl == null || !Number.isFinite(yieldOverTvl) || windowDays <= 0) return null;
+  return (yieldOverTvl / windowDays) * 365 * 100;
+}
+
+type OrcaPoolApiStats = {
+  volumeUsd: number;
+  feesUsd: number;
+  rewardsUsd: number;
+  yieldOverTvl: number;
+};
+
+type OrcaPoolApiEnrichment = {
+  address: string;
+  price: number | null;
+  tvlUsd: number;
+  tokenA: { address: string; symbol: string; name?: string; decimals?: number };
+  tokenB: { address: string; symbol: string; name?: string; decimals?: number };
+  stats24h: OrcaPoolApiStats;
+  stats7d: OrcaPoolApiStats;
+  stats30d: OrcaPoolApiStats;
+  topLevelYieldOverTvl: number | null;
+  feeApr24hPct: number | null;
+  feeApr7dPct: number | null;
+  feeApr30dPct: number | null;
+  estYieldApr24hPct: number | null;
+  estYieldApr7dPct: number | null;
+  estYieldApr30dPct: number | null;
+  rewardsActiveCount: number;
+  updatedAt: string | null;
+};
+
+type OrcaPositionApiYieldComponent = {
+  token: string;
+  amount: number | null;
+  priceInRefAsset: number | null;
+  balanceInRefAsset: number | null;
+};
+
+type OrcaPositionApiYieldEnrichment = {
+  positionAddress: string;
+  positionMint: string;
+  pendingYieldUsd: number | null;
+  totalBalanceUsd: number | null;
+  tokenFeeA: OrcaPositionApiYieldComponent | null;
+  tokenFeeB: OrcaPositionApiYieldComponent | null;
+  rewardTokenBalances: OrcaPositionApiYieldComponent[];
+};
+
+function parseOrcaPoolApiEnrichment(raw: any): OrcaPoolApiEnrichment {
+  const mapStats = (v: any): OrcaPoolApiStats => ({
+    volumeUsd: toNumLoose(v?.volume, 0),
+    feesUsd: toNumLoose(v?.fees, 0),
+    rewardsUsd: toNumLoose(v?.rewards, 0),
+    yieldOverTvl: toNumLoose(v?.yieldOverTvl, 0)
+  });
+  const stats24h = mapStats(raw?.stats?.["24h"]);
+  const stats7d = mapStats(raw?.stats?.["7d"]);
+  const stats30d = mapStats(raw?.stats?.["30d"]);
+  const tvlUsd = toNumLoose(raw?.tvlUsdc, 0);
+  const feeApr = (feesUsd: number, days: number) => (tvlUsd > 0 && days > 0 ? (feesUsd / tvlUsd) * (365 / days) * 100 : null);
+  return {
+    address: String(raw?.address ?? ""),
+    price: raw?.price == null ? null : toNumLoose(raw.price, Number.NaN),
+    tvlUsd,
+    tokenA: {
+      address: String(raw?.tokenA?.address ?? raw?.tokenMintA ?? ""),
+      symbol: String(raw?.tokenA?.symbol ?? ""),
+      name: raw?.tokenA?.name ? String(raw.tokenA.name) : undefined,
+      decimals: Number.isFinite(Number(raw?.tokenA?.decimals)) ? Number(raw.tokenA.decimals) : undefined
+    },
+    tokenB: {
+      address: String(raw?.tokenB?.address ?? raw?.tokenMintB ?? ""),
+      symbol: String(raw?.tokenB?.symbol ?? ""),
+      name: raw?.tokenB?.name ? String(raw.tokenB.name) : undefined,
+      decimals: Number.isFinite(Number(raw?.tokenB?.decimals)) ? Number(raw.tokenB.decimals) : undefined
+    },
+    stats24h,
+    stats7d,
+    stats30d,
+    topLevelYieldOverTvl: raw?.yieldOverTvl == null ? null : toNumLoose(raw.yieldOverTvl, Number.NaN),
+    feeApr24hPct: feeApr(stats24h.feesUsd, 1),
+    feeApr7dPct: feeApr(stats7d.feesUsd, 7),
+    feeApr30dPct: feeApr(stats30d.feesUsd, 30),
+    estYieldApr24hPct: annualizeWindowYieldPct(stats24h.yieldOverTvl, 1),
+    estYieldApr7dPct: annualizeWindowYieldPct(stats7d.yieldOverTvl, 7),
+    estYieldApr30dPct: annualizeWindowYieldPct(stats30d.yieldOverTvl, 30),
+    rewardsActiveCount: Array.isArray(raw?.rewards)
+      ? raw.rewards.filter((r: any) => Boolean(r?.active) || toNumLoose(r?.emissionsPerSecond, 0) > 0).length
+      : 0,
+    updatedAt: raw?.updatedAt ? String(raw.updatedAt) : null
+  };
+}
+
+async function fetchOrcaPoolsApiByAddresses(addresses: string[]): Promise<Map<string, OrcaPoolApiEnrichment>> {
+  const unique = Array.from(new Set(addresses.map((a) => String(a).trim()).filter(Boolean)));
+  const out = new Map<string, OrcaPoolApiEnrichment>();
+  if (unique.length === 0) return out;
+
+  // Keep URLs well below common limits while supporting multiple wallet positions.
+  const chunkSize = 20;
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const url = new URL("https://api.orca.so/v2/solana/pools");
+    url.searchParams.set("addresses", chunk.join(","));
+    const payload = (await fetchJson(url.toString(), { accept: "application/json" })) as { data?: unknown[] | unknown };
+    const rows = Array.isArray(payload?.data) ? payload.data : payload?.data ? [payload.data] : [];
+    for (const raw of rows) {
+      const parsed = parseOrcaPoolApiEnrichment(raw as any);
+      if (parsed.address) out.set(parsed.address, parsed);
+    }
+  }
+
+  return out;
+}
+
+function parseOrcaYieldComponent(raw: any): OrcaPositionApiYieldComponent | null {
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    token: String(raw.token ?? ""),
+    amount: raw.amount == null ? null : toNumLoose(raw.amount, Number.NaN),
+    priceInRefAsset: raw.priceInRefAsset == null ? null : toNumLoose(raw.priceInRefAsset, Number.NaN),
+    balanceInRefAsset: raw.balanceInRefAsset == null ? null : toNumLoose(raw.balanceInRefAsset, Number.NaN)
+  };
+}
+
+async function fetchOrcaPositionYieldsByMints(positionMints: string[]): Promise<Map<string, OrcaPositionApiYieldEnrichment>> {
+  const unique = Array.from(new Set(positionMints.map((m) => String(m).trim()).filter(Boolean)));
+  const out = new Map<string, OrcaPositionApiYieldEnrichment>();
+  if (unique.length === 0) return out;
+
+  const chunkSize = 20;
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const url = new URL("https://api.orca.so/v2/solana/positions");
+    url.searchParams.set("addresses", chunk.join(","));
+    const payload = (await fetchJson(url.toString(), { accept: "application/json" })) as {
+      data?: { positions?: unknown[] };
+    };
+    const rows = Array.isArray(payload?.data?.positions) ? payload.data.positions : [];
+    for (const row of rows as any[]) {
+      const bs = row?.meta?.balanceSnapshot;
+      const totalYield = bs?.totalYield?.balanceInRefAsset == null ? null : toNumLoose(bs.totalYield.balanceInRefAsset, Number.NaN);
+      const totalBalance = bs?.totalBalance?.balanceInRefAsset == null ? null : toNumLoose(bs.totalBalance.balanceInRefAsset, Number.NaN);
+      const tokenFeeA = parseOrcaYieldComponent(bs?.tokenFeeA);
+      const tokenFeeB = parseOrcaYieldComponent(bs?.tokenFeeB);
+      const rewardTokenBalances = Array.isArray(bs?.rewardTokenBalances)
+        ? bs.rewardTokenBalances.map((x: any) => parseOrcaYieldComponent(x)).filter(Boolean)
+        : [];
+      const parsed: OrcaPositionApiYieldEnrichment = {
+        positionAddress: String(row?.address ?? ""),
+        positionMint: String(row?.positionMint ?? ""),
+        pendingYieldUsd: totalYield != null && Number.isFinite(totalYield) ? totalYield : null,
+        totalBalanceUsd: totalBalance != null && Number.isFinite(totalBalance) ? totalBalance : null,
+        tokenFeeA,
+        tokenFeeB,
+        rewardTokenBalances: rewardTokenBalances as OrcaPositionApiYieldComponent[]
+      };
+      if (parsed.positionMint) out.set(parsed.positionMint, parsed);
+    }
+  }
+
+  return out;
+}
+
+function estimateOrcaPositionTokenAmounts(params: {
+  liquidity: bigint;
+  sqrtPrice: bigint;
+  tickLowerIndex: number;
+  tickUpperIndex: number;
+}): { amountA: bigint; amountB: bigint; status: string; ratioA: number | null; ratioB: number | null } {
+  const { liquidity, sqrtPrice, tickLowerIndex, tickUpperIndex } = params;
+  const lowerSqrt = orcaTickIndexToSqrtPrice(tickLowerIndex);
+  const upperSqrt = orcaTickIndexToSqrtPrice(tickUpperIndex);
+  const status = String(orcaPositionStatus(sqrtPrice, tickLowerIndex, tickUpperIndex));
+
+  let amountA = 0n;
+  let amountB = 0n;
+  if (status === "priceBelowRange") {
+    amountA = orcaTryGetAmountDeltaA(lowerSqrt, upperSqrt, liquidity, false);
+  } else if (status === "priceAboveRange") {
+    amountB = orcaTryGetAmountDeltaB(lowerSqrt, upperSqrt, liquidity, false);
+  } else {
+    amountA = orcaTryGetAmountDeltaA(sqrtPrice, upperSqrt, liquidity, false);
+    amountB = orcaTryGetAmountDeltaB(lowerSqrt, sqrtPrice, liquidity, false);
+  }
+
+  let ratioA: number | null = null;
+  let ratioB: number | null = null;
+  try {
+    const ratio = orcaPositionRatio(sqrtPrice, tickLowerIndex, tickUpperIndex) as { ratioA?: number; ratioB?: number };
+    ratioA = typeof ratio.ratioA === "number" ? ratio.ratioA / 100 : null;
+    ratioB = typeof ratio.ratioB === "number" ? ratio.ratioB / 100 : null;
+  } catch {
+    ratioA = null;
+    ratioB = null;
+  }
+
+  return { amountA, amountB, status, ratioA, ratioB };
+}
+
+async function getOrcaWhirlpoolDetails(
+  connection: Connection,
+  wallet: string,
+  spot: Awaited<ReturnType<typeof getSpotPositions>>
+): Promise<ProtocolFetchResult> {
+  const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
+  const rpc = createSolanaRpc(rpcUrl);
+  const candidateMints = Array.from(
+    new Set(
+      spot.splTokens
+        .filter((t) => t.decimals === 0 && t.amountRaw === "1")
+        .map((t) => t.mint)
+    )
+  );
+
+  const mintMetaByMint = new Map(
+    spot.splTokens.map((t) => [
+      t.mint,
+      {
+        amountRaw: t.amountRaw,
+        amountUi: t.amountUi,
+        symbol: t.symbol,
+        metadata: t.metadata ?? null
+      }
+    ])
+  );
+
+  const errors: string[] = [];
+  const positions: Array<{
+    positionAddress: string;
+    positionMint: string;
+    whirlpool: string;
+    tokenMintA: string;
+    tokenMintB: string;
+    tokenSymbolA: string;
+    tokenSymbolB: string;
+    tokenDecimalsA: number | null;
+    tokenDecimalsB: number | null;
+    pairLabel: string;
+    feeRate: number;
+    feeTierPct: number;
+    tickSpacing: number;
+    liquidity: string;
+    tickLowerIndex: number;
+    tickUpperIndex: number;
+    tickCurrentIndex: number;
+    status: string;
+    inRange: boolean;
+    currentPriceBPerA: number | null;
+    rangeLowerPriceBPerA: number | null;
+    rangeUpperPriceBPerA: number | null;
+    distanceToLowerPctFromCurrent: number | null;
+    distanceToUpperPctFromCurrent: number | null;
+    amountAEstRaw: string;
+    amountBEstRaw: string;
+    amountAEstUi: number | null;
+    amountBEstUi: number | null;
+    valueEstUsd: number | null;
+    feeOwedAUi: number | null;
+    feeOwedBUi: number | null;
+    feeOwedAEstUsd: number | null;
+    feeOwedBEstUsd: number | null;
+    feeOwedTotalEstUsd: number | null;
+    compositionRatioA_pct: number | null;
+    compositionRatioB_pct: number | null;
+    rewardMints: string[];
+    orcaApiPoolPrice: number | null;
+    orcaApiTvlUsd: number | null;
+    orcaApiVolume24hUsd: number | null;
+    orcaApiFees24hUsd: number | null;
+    orcaApiRewards24hUsd: number | null;
+    orcaApiFeeApr24hPct: number | null;
+    orcaApiEstYieldApr24hPct: number | null;
+    orcaApiEstYieldApr7dPct: number | null;
+    orcaApiEstYieldApr30dPct: number | null;
+    orcaApiRewardsActiveCount: number | null;
+    orcaApiUpdatedAt: string | null;
+    orcaApiPendingYieldUsd: number | null;
+    orcaApiTotalBalanceUsd: number | null;
+    orcaApiPendingYieldBreakdown: Array<{
+      token: string;
+      amount: number | null;
+      priceInRefAsset: number | null;
+      balanceInRefAsset: number | null;
+    }>;
+    sourceNftSymbol: string | null;
+    sourceNftMetadataName: string | null;
+  }> = [];
+
+  const decimalsCache = new Map<string, number | null>();
+  const getCachedDecimals = async (mint: string) => {
+    if (!decimalsCache.has(mint)) decimalsCache.set(mint, await getMintDecimals(connection, mint));
+    return decimalsCache.get(mint) ?? null;
+  };
+
+  for (const mint of candidateMints) {
+    try {
+      const pda = await getOrcaPositionAddress(address(mint));
+      const positionAddress = Array.isArray(pda) ? String(pda[0]) : String((pda as any).address ?? pda);
+      const positionAcc = (await fetchOrcaMaybePosition(rpc, address(positionAddress))) as any;
+      if (!positionAcc?.exists || !positionAcc?.data) continue;
+
+      const whirlpoolAddress = String(positionAcc.data.whirlpool);
+      const whirlpoolAcc = (await fetchOrcaMaybeWhirlpool(rpc, address(whirlpoolAddress))) as any;
+      if (!whirlpoolAcc?.exists || !whirlpoolAcc?.data) {
+        errors.push(`whirlpool_not_found:${whirlpoolAddress}`);
+        continue;
+      }
+
+      const pool = whirlpoolAcc.data;
+      const tokenMintA = String(pool.tokenMintA);
+      const tokenMintB = String(pool.tokenMintB);
+      const tokenDecimalsA = await getCachedDecimals(tokenMintA);
+      const tokenDecimalsB = await getCachedDecimals(tokenMintB);
+      const tokenSymbolA = KNOWN_TOKEN_SYMBOLS[tokenMintA] ?? inferTokenSymbol(tokenMintA);
+      const tokenSymbolB = KNOWN_TOKEN_SYMBOLS[tokenMintB] ?? inferTokenSymbol(tokenMintB);
+
+      let currentPriceBPerA: number | null = null;
+      let rangeLowerPriceBPerA: number | null = null;
+      let rangeUpperPriceBPerA: number | null = null;
+      if (tokenDecimalsA != null && tokenDecimalsB != null) {
+        currentPriceBPerA = orcaSqrtPriceToPrice(pool.sqrtPrice as bigint, tokenDecimalsA, tokenDecimalsB);
+        rangeLowerPriceBPerA = orcaTickIndexToPrice(positionAcc.data.tickLowerIndex, tokenDecimalsA, tokenDecimalsB);
+        rangeUpperPriceBPerA = orcaTickIndexToPrice(positionAcc.data.tickUpperIndex, tokenDecimalsA, tokenDecimalsB);
+      }
+
+      const est = estimateOrcaPositionTokenAmounts({
+        liquidity: positionAcc.data.liquidity as bigint,
+        sqrtPrice: pool.sqrtPrice as bigint,
+        tickLowerIndex: positionAcc.data.tickLowerIndex,
+        tickUpperIndex: positionAcc.data.tickUpperIndex
+      });
+
+      const amountAEstUi = bigintToUi(est.amountA, tokenDecimalsA);
+      const amountBEstUi = bigintToUi(est.amountB, tokenDecimalsB);
+      const feeOwedAUi = bigintToUi(positionAcc.data.feeOwedA as bigint, tokenDecimalsA);
+      const feeOwedBUi = bigintToUi(positionAcc.data.feeOwedB as bigint, tokenDecimalsB);
+
+      let valueEstUsd: number | null = null;
+      let feeOwedAEstUsd: number | null = null;
+      let feeOwedBEstUsd: number | null = null;
+      const stableSymbols = new Set(["USDC", "USDT", "USDS", "USDG", "AUSD"]);
+      if (currentPriceBPerA != null) {
+        if (stableSymbols.has(tokenSymbolB)) {
+          if (amountAEstUi != null && amountBEstUi != null) valueEstUsd = amountAEstUi * currentPriceBPerA + amountBEstUi;
+          if (feeOwedAUi != null) feeOwedAEstUsd = feeOwedAUi * currentPriceBPerA;
+          if (feeOwedBUi != null) feeOwedBEstUsd = feeOwedBUi;
+        } else if (stableSymbols.has(tokenSymbolA) && currentPriceBPerA > 0) {
+          if (amountAEstUi != null && amountBEstUi != null) valueEstUsd = amountAEstUi + amountBEstUi / currentPriceBPerA;
+          if (feeOwedAUi != null) feeOwedAEstUsd = feeOwedAUi;
+          if (feeOwedBUi != null) feeOwedBEstUsd = feeOwedBUi / currentPriceBPerA;
+        }
+      }
+
+      const distanceToLowerPctFromCurrent =
+        currentPriceBPerA != null && rangeLowerPriceBPerA != null && currentPriceBPerA !== 0
+          ? ((rangeLowerPriceBPerA / currentPriceBPerA) - 1) * 100
+          : null;
+      const distanceToUpperPctFromCurrent =
+        currentPriceBPerA != null && rangeUpperPriceBPerA != null && currentPriceBPerA !== 0
+          ? ((rangeUpperPriceBPerA / currentPriceBPerA) - 1) * 100
+          : null;
+
+      const nftMeta = mintMetaByMint.get(mint);
+      positions.push({
+        positionAddress,
+        positionMint: mint,
+        whirlpool: whirlpoolAddress,
+        tokenMintA,
+        tokenMintB,
+        tokenSymbolA,
+        tokenSymbolB,
+        tokenDecimalsA,
+        tokenDecimalsB,
+        pairLabel: `${tokenSymbolA}-${tokenSymbolB}`,
+        feeRate: Number(pool.feeRate ?? 0),
+        feeTierPct: Number(pool.feeRate ?? 0) / 10_000,
+        tickSpacing: Number(pool.tickSpacing ?? 0),
+        liquidity: String(positionAcc.data.liquidity),
+        tickLowerIndex: Number(positionAcc.data.tickLowerIndex),
+        tickUpperIndex: Number(positionAcc.data.tickUpperIndex),
+        tickCurrentIndex: Number(pool.tickCurrentIndex),
+        status: est.status,
+        inRange: est.status === "priceInRange",
+        currentPriceBPerA,
+        rangeLowerPriceBPerA,
+        rangeUpperPriceBPerA,
+        distanceToLowerPctFromCurrent,
+        distanceToUpperPctFromCurrent,
+        amountAEstRaw: est.amountA.toString(),
+        amountBEstRaw: est.amountB.toString(),
+        amountAEstUi,
+        amountBEstUi,
+        valueEstUsd,
+        feeOwedAUi,
+        feeOwedBUi,
+        feeOwedAEstUsd,
+        feeOwedBEstUsd,
+        feeOwedTotalEstUsd: sumKnown([feeOwedAEstUsd, feeOwedBEstUsd]) || null,
+        compositionRatioA_pct: est.ratioA,
+        compositionRatioB_pct: est.ratioB,
+        rewardMints: Array.isArray(pool.rewardInfos)
+          ? pool.rewardInfos
+              .map((r: any) => String(r?.mint ?? ""))
+              .filter((m: string) => m && m !== "11111111111111111111111111111111")
+          : [],
+        orcaApiPoolPrice: null,
+        orcaApiTvlUsd: null,
+        orcaApiVolume24hUsd: null,
+        orcaApiFees24hUsd: null,
+        orcaApiRewards24hUsd: null,
+        orcaApiFeeApr24hPct: null,
+        orcaApiEstYieldApr24hPct: null,
+        orcaApiEstYieldApr7dPct: null,
+        orcaApiEstYieldApr30dPct: null,
+        orcaApiRewardsActiveCount: null,
+        orcaApiUpdatedAt: null,
+        orcaApiPendingYieldUsd: null,
+        orcaApiTotalBalanceUsd: null,
+        orcaApiPendingYieldBreakdown: [],
+        sourceNftSymbol: nftMeta?.symbol ?? null,
+        sourceNftMetadataName: nftMeta?.metadata?.name ?? null
+      });
+    } catch (err) {
+      errors.push(`mint:${mint}:${normalizeErr(err)}`);
+    }
+  }
+
+  positions.sort((a, b) => {
+    const av = a.valueEstUsd ?? -1;
+    const bv = b.valueEstUsd ?? -1;
+    if (bv !== av) return bv - av;
+    return a.pairLabel.localeCompare(b.pairLabel);
+  });
+
+  try {
+    const yieldMap = await fetchOrcaPositionYieldsByMints(positions.map((p) => p.positionMint));
+    for (const p of positions) {
+      const y = yieldMap.get(p.positionMint);
+      if (!y) continue;
+      p.orcaApiPendingYieldUsd = y.pendingYieldUsd;
+      p.orcaApiTotalBalanceUsd = y.totalBalanceUsd;
+      p.orcaApiPendingYieldBreakdown = [
+        y.tokenFeeA,
+        y.tokenFeeB,
+        ...y.rewardTokenBalances
+      ]
+        .filter(Boolean)
+        .map((x) => ({
+          token: x!.token,
+          amount: x!.amount,
+          priceInRefAsset: x!.priceInRefAsset,
+          balanceInRefAsset: x!.balanceInRefAsset
+        }))
+        .filter((x) => (x.balanceInRefAsset != null ? Math.abs(x.balanceInRefAsset) > 0 : true));
+    }
+  } catch (err) {
+    errors.push(`orca_position_yield:${normalizeErr(err)}`);
+  }
+
+  try {
+    const poolMap = await fetchOrcaPoolsApiByAddresses(positions.map((p) => p.whirlpool));
+    for (const p of positions) {
+      const apiPool = poolMap.get(p.whirlpool);
+      if (!apiPool) continue;
+      p.orcaApiPoolPrice = apiPool.price;
+      p.orcaApiTvlUsd = apiPool.tvlUsd;
+      p.orcaApiVolume24hUsd = apiPool.stats24h.volumeUsd;
+      p.orcaApiFees24hUsd = apiPool.stats24h.feesUsd;
+      p.orcaApiRewards24hUsd = apiPool.stats24h.rewardsUsd;
+      p.orcaApiFeeApr24hPct = apiPool.feeApr24hPct;
+      p.orcaApiEstYieldApr24hPct = apiPool.estYieldApr24hPct;
+      p.orcaApiEstYieldApr7dPct = apiPool.estYieldApr7dPct;
+      p.orcaApiEstYieldApr30dPct = apiPool.estYieldApr30dPct;
+      p.orcaApiRewardsActiveCount = apiPool.rewardsActiveCount;
+      p.orcaApiUpdatedAt = apiPool.updatedAt;
+    }
+  } catch (err) {
+    errors.push(`orca_api_enrichment:${normalizeErr(err)}`);
+  }
+
+  return {
+    source: "orcaWhirlpoolsOnchain",
+    ok: true,
+    endpointUsed: rpcUrl,
+    data: {
+      wallet,
+      candidateNftCount: candidateMints.length,
+      positionCount: positions.length,
+      positions
+    },
+    error: errors.length > 0 ? errors.join(" | ") : null
+  };
+}
+
 export async function fetchWalletPositions(walletStr: string): Promise<WalletPositions> {
   const wallet = new PublicKey(walletStr);
   const rpc = process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
@@ -1461,6 +2006,7 @@ export async function fetchWalletPositions(walletStr: string): Promise<WalletPos
     getKaminoLendDetails(walletStr),
     getKaminoLiquidityDetails(walletStr)
   ]);
+  const orcaWhirlpools = await getOrcaWhirlpoolDetails(connection, walletStr, spot);
 
   const result: WalletPositions = {
     wallet: walletStr,
@@ -1469,13 +2015,55 @@ export async function fetchWalletPositions(walletStr: string): Promise<WalletPos
     spot,
     jupiterPerps,
     kaminoLend,
-    kaminoLiquidity
+    kaminoLiquidity,
+    orcaWhirlpools
   };
 
   return result;
 }
 
 export function buildSummary(result: WalletPositions) {
+  const orcaWhirlpoolsData = (result.orcaWhirlpools.data ?? {}) as {
+    candidateNftCount?: number;
+    positionCount?: number;
+    positions?: Array<{
+      pairLabel?: string;
+      feeTierPct?: number;
+      status?: string;
+      inRange?: boolean;
+      valueEstUsd?: number | null;
+      currentPriceBPerA?: number | null;
+      rangeLowerPriceBPerA?: number | null;
+      rangeUpperPriceBPerA?: number | null;
+      amountAEstUi?: number | null;
+      amountBEstUi?: number | null;
+      tokenSymbolA?: string;
+      tokenSymbolB?: string;
+      positionMint?: string;
+      whirlpool?: string;
+      distanceToLowerPctFromCurrent?: number | null;
+      distanceToUpperPctFromCurrent?: number | null;
+      feeOwedTotalEstUsd?: number | null;
+      orcaApiPoolPrice?: number | null;
+      orcaApiTvlUsd?: number | null;
+      orcaApiVolume24hUsd?: number | null;
+      orcaApiFees24hUsd?: number | null;
+      orcaApiRewards24hUsd?: number | null;
+      orcaApiFeeApr24hPct?: number | null;
+      orcaApiEstYieldApr24hPct?: number | null;
+      orcaApiEstYieldApr7dPct?: number | null;
+      orcaApiEstYieldApr30dPct?: number | null;
+      orcaApiRewardsActiveCount?: number | null;
+      orcaApiUpdatedAt?: string | null;
+      orcaApiPendingYieldUsd?: number | null;
+      orcaApiPendingYieldBreakdown?: Array<{
+        token?: string;
+        amount?: number | null;
+        priceInRefAsset?: number | null;
+        balanceInRefAsset?: number | null;
+      }>;
+    }>;
+  };
   const kaminoLiquidityData = (result.kaminoLiquidity.data ?? {}) as {
     sdkStrategyPositions?: Array<{ pairLabel?: string; strategy?: string }>;
     rewards?: {
@@ -1523,6 +2111,38 @@ export function buildSummary(result: WalletPositions) {
   const kaminoPairs = (kaminoLiquidityData.sdkStrategyPositions ?? [])
     .map((p) => ({ pair: p.pairLabel ?? "unknown", strategy: p.strategy ?? "unknown" }))
     .filter((p) => p.pair !== "unknown");
+  const orcaPositions = orcaWhirlpoolsData.positions ?? [];
+  const orcaWhirlpoolsValueUsd = sumKnown(orcaPositions.map((p) => parseMaybeNumber(p.valueEstUsd)));
+  const orcaWhirlpoolsPendingFeesEstUsd = sumKnown(orcaPositions.map((p) => parseMaybeNumber(p.feeOwedTotalEstUsd)));
+  const orcaWhirlpoolsPendingYieldUsd = sumKnown(orcaPositions.map((p) => parseMaybeNumber(p.orcaApiPendingYieldUsd)));
+  const orcaPendingYieldRows = orcaPositions
+    .map((p) => {
+      const pendingYieldUsd = parseMaybeNumber(p.orcaApiPendingYieldUsd);
+      if (pendingYieldUsd == null || pendingYieldUsd <= 0) return null;
+      return {
+        source: "orca" as const,
+        symbol: "ORCA_PENDING_YIELD",
+        mint: p.positionMint ?? "unknown",
+        amountUi: null,
+        amountRaw: "",
+        amountUsd: pendingYieldUsd,
+        position: p.pairLabel ?? "unknown",
+        positionType: "Orca Whirlpool",
+        strategy: null,
+        farm: p.whirlpool ?? "",
+        breakdown: Array.isArray(p.orcaApiPendingYieldBreakdown)
+          ? p.orcaApiPendingYieldBreakdown
+              .map((b) => ({
+                token: String(b?.token ?? ""),
+                amount: parseMaybeNumber(b?.amount),
+                priceInRefAsset: parseMaybeNumber(b?.priceInRefAsset),
+                amountUsd: parseMaybeNumber(b?.balanceInRefAsset)
+              }))
+              .filter((b) => b.token || (b.amountUsd != null && b.amountUsd !== 0))
+          : []
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => Boolean(x));
 
   const jupRaw = ((result.jupiterPerps.data as { raw?: { elements?: unknown[] } })?.raw ?? {}) as {
     elements?: Array<{ type?: string; value?: number; data?: { isolated?: { positions?: unknown[] } } }>;
@@ -1760,14 +2380,16 @@ export function buildSummary(result: WalletPositions) {
     return null;
   }
 
-  const claimableRewardsValueUsd = sumKnown(claimableByPosition.map((row) => estimateClaimableRowUsd(row)));
+  const claimableRewardsValueUsdKamino = sumKnown(claimableByPosition.map((row) => estimateClaimableRowUsd(row)));
+  const claimableRewardsValueUsd = claimableRewardsValueUsdKamino + orcaWhirlpoolsPendingYieldUsd;
 
   const allTotals = {
-    totalValueUsd: knownTotals.totalValueUsd + (hasLiquidityValuation ? kaminoLiquidityValueUsd : 0),
+    totalValueUsd: knownTotals.totalValueUsd + (hasLiquidityValuation ? kaminoLiquidityValueUsd : 0) + orcaWhirlpoolsValueUsd,
     totalPnlUsd: knownTotals.totalPnlUsd + (hasLiquidityValuation ? kaminoLiquidityPnlUsd : 0)
   };
   const allTotalsFarmsStaked = {
-    totalValueUsd: knownTotals.totalValueUsd + (hasLiquidityValuationFarmsStaked ? kaminoLiquidityValueUsdFarmsStaked : 0),
+    totalValueUsd:
+      knownTotals.totalValueUsd + (hasLiquidityValuationFarmsStaked ? kaminoLiquidityValueUsdFarmsStaked : 0) + orcaWhirlpoolsValueUsd,
     totalPnlUsd: knownTotals.totalPnlUsd + (hasLiquidityValuationFarmsStaked ? kaminoLiquidityPnlUsdFarmsStaked : 0)
   };
 
@@ -1807,16 +2429,71 @@ export function buildSummary(result: WalletPositions) {
       pnlUsd: hasLiquidityValuation ? kaminoLiquidityPnlUsd : null,
       valueUsdFarmsStaked: hasLiquidityValuationFarmsStaked ? kaminoLiquidityValueUsdFarmsStaked : null,
       pnlUsdFarmsStaked: hasLiquidityValuationFarmsStaked ? kaminoLiquidityPnlUsdFarmsStaked : null,
+      orcaWhirlpoolsValueUsd: orcaWhirlpoolsValueUsd || null,
+      orcaWhirlpoolsPendingFeesEstUsd: orcaWhirlpoolsPendingFeesEstUsd || null,
+      orcaWhirlpoolsPendingYieldUsd: orcaWhirlpoolsPendingYieldUsd || null,
+      orcaWhirlpoolsPositionCount: Number(orcaWhirlpoolsData.positionCount ?? orcaPositions.length),
+      valueUsdWithOrca:
+        (hasLiquidityValuation ? kaminoLiquidityValueUsd : 0) + orcaWhirlpoolsValueUsd > 0
+          ? (hasLiquidityValuation ? kaminoLiquidityValueUsd : 0) + orcaWhirlpoolsValueUsd
+          : null,
+      valueUsdFarmsStakedWithOrca:
+        (hasLiquidityValuationFarmsStaked ? kaminoLiquidityValueUsdFarmsStaked : 0) + orcaWhirlpoolsValueUsd > 0
+          ? (hasLiquidityValuationFarmsStaked ? kaminoLiquidityValueUsdFarmsStaked : 0) + orcaWhirlpoolsValueUsd
+          : null,
       rewards: {
         claimable: claimableRewards,
         claimableByPosition: kaminoLiquidityData.rewards?.claimableByPosition ?? [],
+        claimableByPositionWithOrca: [...(kaminoLiquidityData.rewards?.claimableByPosition ?? []), ...orcaPendingYieldRows],
         claimed: claimedRewards,
         claimedByPositionType: kaminoLiquidityData.rewards?.claimedByPositionType ?? [],
         claimedByPositionTypeSymbol: kaminoLiquidityData.rewards?.claimedByPositionTypeSymbol ?? [],
         claimTxCount: kaminoLiquidityData.rewards?.claimTxCount ?? 0,
+        claimableValueUsdKamino: claimableRewardsValueUsdKamino,
+        claimableValueUsdOrca: orcaWhirlpoolsPendingYieldUsd,
         claimableValueUsd: claimableRewardsValueUsd
       },
       strategyValuations: liquidityValuations
+    },
+    orcaWhirlpools: {
+      ok: result.orcaWhirlpools.ok,
+      candidateNftCount: Number(orcaWhirlpoolsData.candidateNftCount ?? 0),
+      positionCount: Number(orcaWhirlpoolsData.positionCount ?? (orcaWhirlpoolsData.positions ?? []).length),
+      valueUsd: orcaWhirlpoolsValueUsd || null,
+      pendingFeesEstUsd: orcaWhirlpoolsPendingFeesEstUsd || null,
+      positions: (orcaWhirlpoolsData.positions ?? []).map((p) => ({
+        pair: p.pairLabel ?? "unknown",
+        feeTierPct: p.feeTierPct ?? null,
+        status: p.status ?? null,
+        inRange: Boolean(p.inRange),
+        valueEstUsd: p.valueEstUsd ?? null,
+        pendingFeesEstUsd: p.feeOwedTotalEstUsd ?? null,
+        currentPrice: p.currentPriceBPerA ?? null,
+        currentPriceOrcaApi: p.orcaApiPoolPrice ?? null,
+        rangeLower: p.rangeLowerPriceBPerA ?? null,
+        rangeUpper: p.rangeUpperPriceBPerA ?? null,
+        distanceToLowerPctFromCurrent: p.distanceToLowerPctFromCurrent ?? null,
+        distanceToUpperPctFromCurrent: p.distanceToUpperPctFromCurrent ?? null,
+        poolTvlUsd: p.orcaApiTvlUsd ?? null,
+        poolVolume24hUsd: p.orcaApiVolume24hUsd ?? null,
+        poolFees24hUsd: p.orcaApiFees24hUsd ?? null,
+        poolRewards24hUsd: p.orcaApiRewards24hUsd ?? null,
+        poolFeeApr24hPct: p.orcaApiFeeApr24hPct ?? null,
+        poolEstYieldApr24hPct: p.orcaApiEstYieldApr24hPct ?? null,
+        poolEstYieldApr7dPct: p.orcaApiEstYieldApr7dPct ?? null,
+        poolEstYieldApr30dPct: p.orcaApiEstYieldApr30dPct ?? null,
+        poolEstYieldAprPreferredPct: p.orcaApiEstYieldApr30dPct ?? p.orcaApiEstYieldApr7dPct ?? p.orcaApiEstYieldApr24hPct ?? null,
+        poolRewardsActiveCount: p.orcaApiRewardsActiveCount ?? null,
+        poolUpdatedAt: p.orcaApiUpdatedAt ?? null,
+        pendingYieldUsdOrcaApi: p.orcaApiPendingYieldUsd ?? null,
+        pendingYieldBreakdownOrcaApi: p.orcaApiPendingYieldBreakdown ?? [],
+        tokenA: p.tokenSymbolA ?? null,
+        tokenB: p.tokenSymbolB ?? null,
+        amountAEstUi: p.amountAEstUi ?? null,
+        amountBEstUi: p.amountBEstUi ?? null,
+        positionMint: p.positionMint ?? null,
+        whirlpool: p.whirlpool ?? null
+      }))
     },
     totals: {
       knownValueUsd: knownTotals.totalValueUsd,

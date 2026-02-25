@@ -56,13 +56,13 @@ async function main() {
   const spotByPool = new Map<string, number | undefined>(
     (poolRankings.topPoolsOverall ?? poolRankings.pools).map((p) => [p.poolAddress, p.spotPrice])
   );
-  const rangePlans = buildRangePlans({ shortlist, regime: regimeState, spotByPool });
   const rankingByPool = new Map((poolRankings.topPoolsOverall ?? poolRankings.pools).map((p) => [p.poolAddress, p]));
+  const rangePlansWithMeta = buildRangePlans({ shortlist, regime: regimeState, spotByPool, rankingByPool });
   const solSpotUsd =
     (poolRankings.topPoolsOverall ?? poolRankings.pools).find((p) => p.type === "SOL-STABLE" && p.spotPrice && p.spotPrice > 1)
       ?.spotPrice ?? undefined;
   const plans = applyHedgePlans({
-    ...rangePlans,
+    ...rangePlansWithMeta,
     notes: [
       "Range presets are weekly-active heuristics around current spot using regime + pool-type volatility proxies.",
       "Hedges are normalized per $10k deployed and use the fixed funding APR proxy."

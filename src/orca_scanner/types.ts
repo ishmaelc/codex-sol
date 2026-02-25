@@ -114,6 +114,7 @@ export type RankedPool = {
   explanation: string;
   validatedOnchain: boolean;
   tokenSymbols: [string, string];
+  tokenMints?: [string, string];
   tokenDecimals?: [number, number];
   spotPrice?: number;
   tickSpacing?: number;
@@ -182,7 +183,7 @@ export type ShortlistItem = {
 export type ShortlistOutput = {
   generatedAt: string;
   regime: RegimeLabel;
-  maxPools: 2;
+  maxPools: 1;
   selected: ShortlistItem[];
   constraints: {
     minDepthTvl1PctRatio: number;
@@ -231,6 +232,8 @@ export type PoolPlan = {
   poolAddress: string;
   pool: string;
   type: Exclude<PoolUniverseType, "STABLE-STABLE">;
+  tokenA?: { mint: string; symbol: string; decimals?: number };
+  tokenB?: { mint: string; symbol: string; decimals?: number };
   spotPrice?: number;
   volatilityProxyPctAnnual: number;
   regimeWidthMultiplier?: number;

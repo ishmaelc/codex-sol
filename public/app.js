@@ -114,6 +114,7 @@ function hedgeActionText(adjustmentUsd, signalLabel) {
 function computeHedgeRows(summary, fullPositions) {
   const strategyValuations = summary?.kaminoLiquidity?.strategyValuations ?? [];
   const valuationByPair = new Map(strategyValuations.map((v) => [String(v?.pairLabel || "").toUpperCase(), v]));
+  const orcaPositions = summary?.orcaWhirlpools?.positions ?? [];
   const leverageElement = (fullPositions?.jupiterPerps?.data?.raw?.elements ?? []).find((e) => e?.type === "leverage");
   const perpsPositions = leverageElement?.data?.isolated?.positions ?? [];
 
@@ -145,12 +146,62 @@ function computeHedgeRows(summary, fullPositions) {
     return { token: a || b || "unknown", deltaUsd: est, method: "fallback-50" };
   }
 
+  function estimateOrcaVolatileDeltaUsd(position) {
+    const a = String(position?.tokenA || "").toUpperCase();
+    const b = String(position?.tokenB || "").toUpperCase();
+    const stable = new Set(["USDC", "USDG", "USDS", "USDT", "AUSD"]);
+    const amountA = Number(position?.amountAEstUi ?? NaN);
+    const amountB = Number(position?.amountBEstUi ?? NaN);
+    const priceBPerA = Number(position?.currentPriceOrcaApi ?? position?.currentPrice ?? NaN);
+    const valueUsd = Number(position?.valueEstUsd ?? NaN);
+
+    if (stable.has(a) && !stable.has(b)) {
+      if (Number.isFinite(amountB) && Number.isFinite(priceBPerA) && priceBPerA > 0) {
+        return { token: b, deltaUsd: amountB / priceBPerA, method: "orca-exact" };
+      }
+      return { token: b, deltaUsd: Number.isFinite(valueUsd) ? valueUsd * 0.5 : NaN, method: "orca-fallback-50" };
+    }
+
+    if (stable.has(b) && !stable.has(a)) {
+      if (Number.isFinite(amountA) && Number.isFinite(priceBPerA) && priceBPerA > 0) {
+        return { token: a, deltaUsd: amountA * priceBPerA, method: "orca-exact" };
+      }
+      return { token: a, deltaUsd: Number.isFinite(valueUsd) ? valueUsd * 0.5 : NaN, method: "orca-fallback-50" };
+    }
+
+    return { token: a || b || "unknown", deltaUsd: Number.isFinite(valueUsd) ? valueUsd * 0.5 : NaN, method: "orca-fallback-50" };
+  }
+
+  const orcaExposureByToken = new Map();
+  for (const p of orcaPositions) {
+    const est = estimateOrcaVolatileDeltaUsd(p);
+    const token = String(est.token || "").toUpperCase();
+    if (!token || !Number.isFinite(est.deltaUsd)) continue;
+    const prev = orcaExposureByToken.get(token) ?? { deltaUsd: 0, valueUsd: 0, rows: [] };
+    prev.deltaUsd += est.deltaUsd;
+    prev.valueUsd += Number.isFinite(Number(p?.valueEstUsd)) ? Number(p.valueEstUsd) : 0;
+    prev.rows.push({
+      pair: String(p?.pair || "unknown"),
+      valueUsd: Number(p?.valueEstUsd ?? NaN),
+      deltaUsd: est.deltaUsd,
+      method: est.method
+    });
+    orcaExposureByToken.set(token, prev);
+  }
+
   return HEDGE_LINKS.map((link) => {
     const valuation = valuationByPair.get(link.lpPair.toUpperCase());
     const lpValueUsd = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? NaN);
     const lpDelta = valuation ? estimateLpVolatileDeltaUsd(valuation) : { token: "n/a", deltaUsd: NaN };
+    const orcaExposure = orcaExposureByToken.get(String(link.perpSymbol || "").toUpperCase()) ?? null;
+    const orcaDeltaUsd = orcaExposure ? Number(orcaExposure.deltaUsd ?? NaN) : NaN;
+    const orcaValueUsd = orcaExposure ? Number(orcaExposure.valueUsd ?? NaN) : NaN;
+    const combinedLpValueUsd =
+      (Number.isFinite(lpValueUsd) ? lpValueUsd : 0) + (Number.isFinite(orcaValueUsd) ? orcaValueUsd : 0);
+    const combinedLpDeltaUsd =
+      (Number.isFinite(lpDelta.deltaUsd) ? lpDelta.deltaUsd : 0) + (Number.isFinite(orcaDeltaUsd) ? orcaDeltaUsd : 0);
     const beta = Number(BETA_OVERRIDES[link.strategyLabel] ?? 1);
-    const betaAdjustedLpDeltaUsd = Number.isFinite(lpDelta.deltaUsd) ? lpDelta.deltaUsd * beta : NaN;
+    const betaAdjustedLpDeltaUsd = Number.isFinite(combinedLpDeltaUsd) ? combinedLpDeltaUsd * beta : NaN;
     const perp = perpsBySymbol.get(link.perpSymbol) ?? { notionalUsd: NaN, deltaUsd: NaN, side: "n/a" };
     const targetPerpDeltaUsd = Number.isFinite(betaAdjustedLpDeltaUsd) ? -betaAdjustedLpDeltaUsd : NaN;
     const adjustmentUsd = Number.isFinite(targetPerpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? targetPerpDeltaUsd - perp.deltaUsd : NaN;
@@ -169,9 +220,12 @@ function computeHedgeRows(summary, fullPositions) {
       ...link,
       lpToken: lpDelta.token,
       lpDeltaMethod: lpDelta.method,
+      orcaValueUsd,
+      orcaDeltaUsd,
+      orcaExposureRows: orcaExposure?.rows ?? [],
       beta,
-      lpValueUsd,
-      lpDeltaUsd: lpDelta.deltaUsd,
+      lpValueUsd: Number.isFinite(combinedLpValueUsd) ? combinedLpValueUsd : lpValueUsd,
+      lpDeltaUsd: Number.isFinite(combinedLpDeltaUsd) ? combinedLpDeltaUsd : lpDelta.deltaUsd,
       betaAdjustedLpDeltaUsd,
       perpSide: perp.side,
       perpNotionalUsd: perp.notionalUsd,
@@ -843,8 +897,10 @@ function render(summary, fullPositions) {
   const lendObligations = summary?.kaminoLend?.obligations ?? [];
   const claimedRewardsTyped = summary?.kaminoLiquidity?.rewards?.claimedByPositionTypeSymbol ?? [];
   const liqFarmsValueUsd = Number(summary?.kaminoLiquidity?.valueUsdFarmsStaked ?? 0);
+  const orcaWhirlpoolsValueUsd = Number(summary?.kaminoLiquidity?.orcaWhirlpoolsValueUsd ?? summary?.orcaWhirlpools?.valueUsd ?? 0);
+  const liqPlusOrcaValueUsd = Number(summary?.kaminoLiquidity?.valueUsdFarmsStakedWithOrca ?? (liqFarmsValueUsd + orcaWhirlpoolsValueUsd));
   const claimableValueUsd = Number(summary?.kaminoLiquidity?.rewards?.claimableValueUsd ?? 0);
-  const positionsTotalUsd = perpsValueUsd + lendValueUsd + liqFarmsValueUsd;
+  const positionsTotalUsd = perpsValueUsd + lendValueUsd + liqPlusOrcaValueUsd;
   const portfolioTotalUsd = positionsTotalUsd + walletSpotKnownUsd;
   const portfolioPlusClaimablesUsd = portfolioTotalUsd + claimableValueUsd;
   const positionsPnlUsd = perpsPnl + liqPnlFarms;
@@ -1045,8 +1101,8 @@ function render(summary, fullPositions) {
           <td>${fmtUsd(lendValueUsd)}</td>
         </tr>
         <tr>
-          <td>Kamino Liquidity (farms-staked)</td>
-          <td>${fmtUsd(liqFarmsValueUsd)}</td>
+          <td>Kamino Liquidity + Orca (farms-staked + whirlpools)</td>
+          <td>${fmtUsd(liqPlusOrcaValueUsd)}</td>
         </tr>
         <tr class="total-row">
           <td>Positions Total (subtotal)</td>
@@ -1109,8 +1165,9 @@ function render(summary, fullPositions) {
         </div>
       </details>
       <details class="collapse-card">
-        <summary>Kamino Liquidity / Farming <span>${fmtUsd(liqFarmsValueUsd)}</span></summary>
+        <summary>Kamino Liquidity / Farming + Orca <span>${fmtUsd(liqPlusOrcaValueUsd)}</span></summary>
         <div class="rewards-wrap">
+          <div class="table-note">Kamino farms-staked valuation: ${fmtUsd(liqFarmsValueUsd)} | Orca whirlpools (est): ${fmtUsd(orcaWhirlpoolsValueUsd)}</div>
           <table class="rewards-table">
             <thead>
               <tr><th>Pair</th><th>Value</th><th>PnL</th><th>Fees/Rewards PnL</th><th>Price/Ratio PnL</th><th>Days</th><th>Deposits (History)</th><th>Unreconciled Basis</th><th>Unrealized APR</th><th>Fees APY</th><th>Rewards APY</th><th>Rewards</th><th>Total APY</th></tr>
@@ -1179,7 +1236,9 @@ function render(summary, fullPositions) {
     syncLabel();
   }
 
-  liqEndpointInfo.textContent = `Endpoint valuation: ${fmtUsd(summary?.kaminoLiquidity?.valueUsd)} | PnL: ${fmtUsd(liqPnl)}`;
+  liqEndpointInfo.textContent = `Endpoint valuation (Kamino): ${fmtUsd(summary?.kaminoLiquidity?.valueUsd)} | Orca whirlpools est: ${fmtUsd(
+    orcaWhirlpoolsValueUsd
+  )} | PnL (Kamino): ${fmtUsd(liqPnl)}`;
 
   const pairs = summary?.kaminoLiquidity?.strategyPairs ?? [];
   pairsList.innerHTML = pairs.length
@@ -1313,7 +1372,8 @@ function render(summary, fullPositions) {
     <p class="table-note">n/a means no reliable USD price feed was found in current sources. Type/details come from token metadata when available.</p>
   `;
 
-  const claimableByPosition = summary?.kaminoLiquidity?.rewards?.claimableByPosition ?? [];
+  const claimableByPosition =
+    summary?.kaminoLiquidity?.rewards?.claimableByPositionWithOrca ?? summary?.kaminoLiquidity?.rewards?.claimableByPosition ?? [];
   const claimedRewards = summary?.kaminoLiquidity?.rewards?.claimed ?? [];
   const claimedRewardsTypedRows = summary?.kaminoLiquidity?.rewards?.claimedByPositionTypeSymbol ?? [];
   const lendObligationRows = summary?.kaminoLend?.obligations ?? [];
@@ -1334,6 +1394,9 @@ function render(summary, fullPositions) {
   rewardsTableWrap.innerHTML = claimableByPosition.length || claimedRewards.length
     ? (() => {
         const totalRewardsUsd = claimableByPosition.reduce((acc, row) => {
+          if (String(row?.source || "") === "orca" && Number.isFinite(Number(row?.amountUsd))) {
+            return acc + Number(row.amountUsd);
+          }
           const v = estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol);
           return acc + (Number.isFinite(Number(v)) ? Number(v) : 0);
         }, 0);
@@ -1355,16 +1418,38 @@ function render(summary, fullPositions) {
         <tbody>
           ${claimableByPosition
             .map((row) => {
-              const valueUsd = estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol);
+              const isOrcaPending = String(row?.source || "") === "orca";
+              const valueUsd = isOrcaPending
+                ? (Number.isFinite(Number(row?.amountUsd)) ? Number(row.amountUsd) : null)
+                : estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol);
+              const orcaTokenLabel = (mint) => {
+                if (mint === "So11111111111111111111111111111111111111112") return "SOL";
+                if (mint === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v") return "USDC";
+                return shortPk(String(mint || ""));
+              };
+              const amountCell = isOrcaPending
+                ? (Array.isArray(row?.breakdown) && row.breakdown.length
+                    ? row.breakdown
+                        .map((b) => {
+                          const sym = orcaTokenLabel(String(b?.token || ""));
+                          const amt = Number.isFinite(Number(b?.amount)) ? fmtTokenAmount(b.amount) : "n/a";
+                          const usd = Number.isFinite(Number(b?.amountUsd)) ? fmtUsd(b.amountUsd) : "n/a";
+                          return `${amt} ${sym} (${usd})`;
+                        })
+                        .join("<br/>")
+                    : "n/a")
+                : fmtTokenAmount(row.amountUi);
               return `
                 <tr>
-                  <td>${row.symbol}</td>
-                  <td>${fmtTokenAmount(row.amountUi)}</td>
+                  <td>${isOrcaPending ? "Orca Pending Yield" : row.symbol}</td>
+                  <td>${amountCell}</td>
                   <td>${fmtUsd(valueUsd)}</td>
                   <td>${row.position}</td>
                   <td>${row.positionType}</td>
                   <td>${row.mint}</td>
-                  <td>${row.positionType === "Lend" || row.positionType === "Multiply" ? obligationCellForToken(row.symbol) : "-"}</td>
+                  <td>${
+                    row.positionType === "Lend" || row.positionType === "Multiply" ? obligationCellForToken(row.symbol) : "-"
+                  }</td>
                 </tr>
               `;
             })
