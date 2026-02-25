@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-02-24T23:38:16.914Z",
+  "regime": "LOW",
+  "maxPools": 2,
+  "allocations": [
+    {
+      "poolAddress": "5hWJUNTtEtKmKgDXpthJXXRRmJrz5vJ7uJzrUNVdrwLg",
+      "pool": "USDC/JitoSOL",
+      "type": "LST-STABLE",
+      "weightPct": 60,
+      "rationale": "LOW regime allocation rule"
+    },
+    {
+      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "weightPct": 40,
+      "rationale": "LOW regime allocation rule"
+    }
+  ],
+  "rationale": [
+    "LOW regime: 60% carry-ish (SOL-LST/LST-STABLE), 40% SOL-STABLE anchor."
+  ],
+  "notes": [
+    "Allocation is a recommendation layer on top of the shortlist, capped at 2 pools."
+  ]
+}

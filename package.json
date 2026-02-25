@@ -9,11 +9,14 @@
     "dev": "tsx watch src/index.ts",
     "server": "tsx watch src/server.ts",
     "server:once": "tsx src/server.ts",
-    "server:dev": "tsx watch src/server.ts"
+    "server:dev": "tsx watch src/server.ts",
+    "orca:refresh": "tsx src/orca_scanner/main.ts",
+    "orca:perf-snapshot": "tsx src/orca_scanner/performance_snapshot.ts"
   },
   "dependencies": {
     "@kamino-finance/farms-sdk": "^3.2.24",
     "@kamino-finance/kliquidity-sdk": "^8.5.10",
+    "@orca-so/whirlpools-core": "^3.1.0",
     "@solana/kit": "^2.3.0",
     "@solana/web3.js": "^1.98.2",
     "@types/express": "^5.0.6",

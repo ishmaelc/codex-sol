@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orca Regime + Pool Rankings</title>
+    <style>
+      :root {
+        --bg: #081018;
+        --panel: rgba(14, 23, 35, 0.9);
+        --panel-2: rgba(10, 18, 28, 0.9);
+        --text: #e9f2ff;
+        --muted: #9bb1cb;
+        --line: rgba(155, 177, 203, 0.18);
+        --accent: #29d3c4;
+        --warn: #ffb13b;
+        --danger: #ff6d6d;
+        --ok: #70f2a8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 10% 0%, rgba(41, 211, 196, 0.16), transparent 40%),
+          radial-gradient(circle at 90% 10%, rgba(112, 242, 168, 0.14), transparent 35%),
+          linear-gradient(180deg, #061018 0%, #05090f 100%);
+      }
+
+      .wrap {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        letter-spacing: 0.02em;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--panel), var(--panel-2));
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+      }
+
+      .regime {
+        padding: 18px;
+        margin-bottom: 18px;
+      }
+
+      .regime-top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .pill.low { color: var(--ok); }
+      .pill.moderate { color: var(--warn); }
+      .pill.high { color: var(--danger); }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .metric .label {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-bottom: 4px;
+      }
+
+      .metric .value {
+        font-weight: 700;
+        font-size: 1rem;
+      }
+
+      .reasons {
+        margin-top: 12px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .reasons ul {
+        margin: 6px 0 0;
+        padding-left: 18px;
+      }
+
+      .table-card {
+        overflow: hidden;
+      }
+
+      .stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      .section {
+        padding: 14px 16px;
+      }
+
+      .section h2 {
+        margin: 0 0 10px;
+        font-size: 1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 10px;
+      }
+
+      .mini-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .mini-card h3 {
+        margin: 0 0 6px;
+        font-size: 0.95rem;
+      }
+
+      .kv {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 4px 10px;
+        font-size: 0.86rem;
+      }
+
+      .kv .k {
+        color: var(--muted);
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .chip {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .alert-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .alert {
+        border-radius: 10px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.02);
+        font-size: 0.9rem;
+      }
+
+      .alert.warn { border-color: rgba(255, 177, 59, 0.35); }
+      .alert.critical { border-color: rgba(255, 109, 109, 0.35); }
+      .alert.info { border-color: rgba(41, 211, 196, 0.25); }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      thead th {
+        text-align: left;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(8, 14, 22, 0.98);
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        box-shadow: 0 1px 0 rgba(155, 177, 203, 0.14);
+      }
+
+      tbody td {
+        padding: 10px;
+        border-bottom: 1px solid rgba(155, 177, 203, 0.1);
+        vertical-align: top;
+        font-size: 0.9rem;
+      }
+
+      tbody tr:hover {
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.82rem;
+      }
+
+      .score {
+        font-weight: 700;
+        color: var(--accent);
+      }
+
+      .status {
+        margin: 10px 0 18px;
+        color: var(--muted);
+      }
+
+      .error {
+        color: #ffd0d0;
+        border: 1px solid rgba(255, 109, 109, 0.3);
+        background: rgba(255, 109, 109, 0.08);
+        padding: 12px;
+        border-radius: 12px;
+      }
+
+      .table-wrap {
+        overflow: auto;
+        max-height: 68vh;
+        position: relative;
+      }
+
+      @media (max-width: 900px) {
+        .wrap {
+          padding: 14px;
+        }
+        thead th, tbody td {
+          padding: 8px 6px;
+          font-size: 0.82rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <h1>Orca Regime + Pool Rankings</h1>
+        <div id="updatedAt" class="muted"></div>
+      </div>
+      <div id="status" class="status">Loading Orca dashboard data...</div>
+      <div id="app"></div>
+    </div>
+
+    <script>
+      const REGIME_URL = "/data/orca/regime_state.json";
+      const POOLS_URL = "/data/orca/pool_rankings.json";
+      const SHORTLIST_URL = "/data/orca/shortlist.json";
+      const PLANS_URL = "/data/orca/plans.json";
+      const ALLOCATION_URL = "/data/orca/allocation.json";
+      const ALERTS_URL = "/data/orca/alerts.json";
+      const PERFORMANCE_URL = "/data/orca/performance.json";
+
+      function fmtUsd(v) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return "n/a";
+        return new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: n >= 1000 ? 0 : 2
+        }).format(n);
+      }
+
+      function fmtPct(v, digits = 2) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return "n/a";
+        return `${n.toFixed(digits)}%`;
+      }
+
+      function fmtNum(v, digits = 2) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return "n/a";
+        return n.toFixed(digits);
+      }
+
+      function regimeClass(label) {
+        return String(label || "").toLowerCase();
+      }
+
+      function escapeHtml(s) {
+        return String(s ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function renderShortlist(shortlist) {
+        const items = Array.isArray(shortlist?.selected) ? shortlist.selected : [];
+        if (items.length === 0) {
+          return `<section class="card section"><h2>Shortlist</h2><div class="muted">No pools qualified under current regime guardrails.</div></section>`;
+        }
+        return `
+          <section class="card section">
+            <h2>Shortlist (max ${shortlist.maxPools || 2})</h2>
+            <div class="grid-2">
+              ${items
+                .filter((x) => x.type !== "STABLE-STABLE")
+                .map(
+                  (x) => `
+                <div class="mini-card">
+                  <h3>${escapeHtml(x.pool)} <span class="muted">#${x.rank}</span></h3>
+                  <div class="chips">
+                    <span class="chip">${escapeHtml(x.type)}</span>
+                    <span class="chip">Score ${fmtNum(x.score, 2)}</span>
+                    <span class="chip">FeeAPR ${fmtPct(x.feeAprPct)}</span>
+                  </div>
+                  <div class="kv" style="margin-top:8px">
+                    <div class="k">TVL</div><div>${fmtUsd(x.tvlUsd)}</div>
+                    <div class="k">Volume24h</div><div>${fmtUsd(x.volume24hUsd)}</div>
+                    <div class="k">Depth ±1%</div><div>${x.depthUsd1Pct != null ? fmtUsd(x.depthUsd1Pct) : "n/a"} ${x.depthTvl1PctRatio != null ? `<span class="muted">(${fmtNum(x.depthTvl1PctRatio * 100, 2)}% TVL)</span>` : ""}</div>
+                  </div>
+                  <ul class="muted" style="margin:8px 0 0; padding-left:18px;">
+                    ${(x.reasons || []).map((r) => `<li>${escapeHtml(r.message)}</li>`).join("")}
+                  </ul>
+                </div>`
+                )
+                .join("")}
+            </div>
+          </section>`;
+      }
+
+      function renderPlans(plans) {
+        const rows = Array.isArray(plans?.plans) ? plans.plans.filter((p) => p.type !== "STABLE-STABLE") : [];
+        return `
+          <section class="card section">
+            <h2>Plans</h2>
+            ${
+              rows.length === 0
+                ? `<div class="muted">No plan rows available.</div>`
+                : `<div class="grid-2">
+              ${rows
+                .map(
+                  (p) => `
+                <div class="mini-card">
+                  <h3>${escapeHtml(p.pool)}</h3>
+                  <div class="chips">
+                    <span class="chip">${escapeHtml(p.type)}</span>
+                    <span class="chip">Vol proxy ${fmtPct(p.volatilityProxyPctAnnual)}</span>
+                    <span class="chip">Spot ${p.spotPrice != null ? fmtNum(p.spotPrice, 6) : "n/a"}</span>
+                  </div>
+                  <div class="muted" style="margin-top:8px; font-size:0.82rem;">Regime multiplier: ${fmtNum(p.regimeWidthMultiplier, 2)} (${escapeHtml(plans?.regime?.label || "n/a")})</div>
+                  <div style="margin-top:8px; font-size:0.85rem;">
+                    ${(p.presets || [])
+                      .map(
+                        (pr) =>
+                          `<div><strong>${pr.label}</strong>: ${fmtNum(pr.lowerPct, 2)}% / +${fmtNum(pr.upperPct, 2)}% ${pr.lowerPrice != null && pr.upperPrice != null ? `<span class="muted">(${fmtNum(pr.lowerPrice, 6)} - ${fmtNum(pr.upperPrice, 6)})</span>` : ""}</div>`
+                      )
+                      .join("")}
+                  </div>
+                  <div style="margin-top:8px; font-size:0.85rem;">
+                    <strong>Hedge</strong>: ${escapeHtml(p.hedge?.side || "NONE")} ${p.hedge?.enabled ? `| ${fmtNum(p.hedge.recommendedShortSolPer10kUsd, 4)} SOL / ${fmtUsd(p.hedge.recommendedShortNotionalUsdPer10kUsd)} per $10k` : ""}
+                    <div class="muted">Deposit ratio: ${
+                      p.hedge?.depositRatioTokenARatioUSD != null && p.hedge?.depositRatioTokenBRatioUSD != null
+                        ? `${fmtNum(p.hedge.depositRatioTokenARatioUSD * 100, 1)}% ${escapeHtml(p.hedge.depositRatioTokenASymbol || "A")} / ${fmtNum(p.hedge.depositRatioTokenBRatioUSD * 100, 1)}% ${escapeHtml(p.hedge.depositRatioTokenBSymbol || "B")} <span class="muted">(${escapeHtml(p.hedge.depositRatioSource || "fallback")})</span>`
+                        : `n/a <span class="muted">(${escapeHtml(p.hedge?.depositRatioSource || "fallback")})</span>`
+                    }</div>
+                    <div class="muted">Delta fraction (est): ${p.hedge?.approxDeltaFraction != null ? fmtNum(p.hedge.approxDeltaFraction, 3) : "n/a"} | Hedge multiplier: ${p.hedge?.hedgeMultiplier != null ? fmtNum(p.hedge.hedgeMultiplier, 2) : "n/a"}</div>
+                    <div class="muted">${escapeHtml(p.hedge?.note || "")}</div>
+                    ${p.hedge?.warning ? `<div class="muted" style="color:#ffd0d0">${escapeHtml(p.hedge.warning)}</div>` : ""}
+                  </div>
+                </div>`
+                )
+                .join("")}
+            </div>`
+            }
+          </section>`;
+      }
+
+      function renderAlerts(alerts) {
+        const rows = Array.isArray(alerts?.alerts) ? alerts.alerts : [];
+        return `
+          <section class="card section">
+            <h2>Alerts</h2>
+            ${
+              rows.length === 0
+                ? `<div class="muted">No active alerts from current thresholds.</div>`
+                : `<div class="alert-list">
+              ${rows
+                .map(
+                  (a) => `<div class="alert ${a.severity || "info"}"><strong>${escapeHtml(a.kind || "ALERT")}</strong> ${a.pool ? `<span class="muted">(${escapeHtml(a.pool)})</span>` : ""}<div>${escapeHtml(a.message || "")}</div></div>`
+                )
+                .join("")}
+            </div>`
+            }
+          </section>`;
+      }
+
+      function renderAllocation(allocation) {
+        const rows = Array.isArray(allocation?.allocations) ? allocation.allocations : [];
+        return `
+          <section class="card section">
+            <h2>Allocation</h2>
+            ${
+              rows.length === 0
+                ? `<div class="muted">No allocation recommendation available.</div>`
+                : `<div class="grid-2">
+                    ${rows
+                      .map(
+                        (a) => `<div class="mini-card">
+                          <h3>${escapeHtml(a.pool)}</h3>
+                          <div class="chips">
+                            <span class="chip">${escapeHtml(a.type)}</span>
+                            <span class="chip">${fmtNum(a.weightPct, 0)}%</span>
+                          </div>
+                          <div class="muted" style="margin-top:8px;">${escapeHtml(a.rationale || "")}</div>
+                        </div>`
+                      )
+                      .join("")}
+                   </div>`
+            }
+            ${Array.isArray(allocation?.rationale) && allocation.rationale.length ? `<ul class="muted" style="margin:10px 0 0; padding-left:18px;">${allocation.rationale.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>` : ""}
+          </section>`;
+      }
+
+      function renderPerformance(perf) {
+        const summary = perf?.summary || {};
+        return `
+          <section class="card section">
+            <h2>Performance Ledger (7d snapshots)</h2>
+            <div class="kv">
+              <div class="k">Snapshots</div><div>${summary.snapshotCount ?? 0}</div>
+              <div class="k">Avg funding APR</div><div>${fmtPct(summary.avgFundingAprPct)}</div>
+              <div class="k">Regime counts</div><div>LOW ${summary.regimeCounts?.LOW ?? 0} / MOD ${summary.regimeCounts?.MODERATE ?? 0} / HIGH ${summary.regimeCounts?.HIGH ?? 0}</div>
+              <div class="k">Latest snapshot</div><div>${summary.latestSnapshotTs ? new Date(summary.latestSnapshotTs).toLocaleString() : "n/a"}</div>
+            </div>
+          </section>`;
+      }
+
+      function render(regime, pools, shortlist, plans, allocation, alerts, performance) {
+        const app = document.getElementById("app");
+        const updatedAt = document.getElementById("updatedAt");
+        const status = document.getElementById("status");
+
+        updatedAt.textContent = `Regime: ${regime.regime || "n/a"} | Updated ${new Date(
+          regime.generatedAt || pools.generatedAt || Date.now()
+        ).toLocaleString()}`;
+        const allRows = Array.isArray(pools.topPoolsOverall) ? pools.topPoolsOverall : Array.isArray(pools.pools) ? pools.pools : [];
+        const rows = allRows.filter((r) => r.type !== "STABLE-STABLE");
+        status.textContent = `Loaded ${rows.length} ranked pools (UI-visible).`;
+
+        const metrics = regime.metrics || {};
+
+        app.innerHTML = `
+          <div class="stack">
+          <section class="card regime">
+            <div class="regime-top">
+              <div class="pill ${regimeClass(regime.regime)}">
+                <span>${regime.regime || "UNKNOWN"}</span>
+                <span class="muted">confidence ${fmtNum((Number(regime.confidence) || 0) * 100, 0)}%</span>
+              </div>
+              <div class="muted">Score ${fmtNum(regime.score, 3)}</div>
+            </div>
+            <div class="metrics">
+              <div class="metric"><div class="label">vol7d</div><div class="value">${fmtPct(metrics.vol7dPct)}</div></div>
+              <div class="metric"><div class="label">vol30d</div><div class="value">${fmtPct(metrics.vol30dPct)}</div></div>
+              <div class="metric"><div class="label">VR (7d/30d)</div><div class="value">${fmtNum(metrics.vr, 2)}</div></div>
+              <div class="metric"><div class="label">Funding APR (proxy)</div><div class="value">${fmtPct(metrics.fundingAprPct)}</div></div>
+              <div class="metric"><div class="label">Volume/TVL 24h</div><div class="value">${fmtNum((metrics.volumeTvl24h || 0) * 100, 2)}%</div></div>
+              <div class="metric"><div class="label">Volume/TVL trend</div><div class="value">${(metrics.volumeTvlTrendLabel || "unknown").toUpperCase()} ${metrics.volumeTvlTrendRatio ? `(${fmtNum(metrics.volumeTvlTrendRatio, 2)}x)` : ""}</div></div>
+            </div>
+            <div class="reasons">
+              <strong>Drivers</strong>
+              <ul>
+                ${(Array.isArray(regime.reasons) ? regime.reasons : []).map((x) => `<li>${x}</li>`).join("")}
+              </ul>
+            </div>
+          </section>
+
+          ${renderShortlist(shortlist)}
+          ${renderPlans(plans)}
+          ${renderAllocation(allocation)}
+          ${renderAlerts(alerts)}
+          ${renderPerformance(performance)}
+
+          <section class="card table-card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Pool</th>
+                    <th>Type</th>
+                    <th>Fee Tier</th>
+                    <th>TVL</th>
+                    <th>Volume24h</th>
+                    <th>FeeAPR</th>
+                    <th>Vol/TVL</th>
+                    <th>Depth ±1%</th>
+                    <th>Depth ±2%</th>
+                    <th>Score</th>
+                    <th>Explanation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows
+                    .map(
+                      (r) => `
+                    <tr>
+                      <td>${r.rank ?? ""}</td>
+                      <td><div>${r.pool || ""}</div><div class="mono muted">${String(r.poolAddress || "").slice(0, 8)}...</div></td>
+                      <td>${r.type || ""}</td>
+                      <td>${fmtPct(r.feeTierPct, 4)}</td>
+                      <td>${fmtUsd(r.tvlUsd)}</td>
+                      <td>${fmtUsd(r.volume24hUsd)}</td>
+                      <td>${fmtPct(r.feeAprPct)}</td>
+                      <td>${fmtNum((Number(r.volumeTvl) || 0) * 100, 1)}%</td>
+                      <td>${r.depthUsd1Pct != null ? fmtUsd(r.depthUsd1Pct) : "n/a"}</td>
+                      <td>${r.depthUsd2Pct != null ? fmtUsd(r.depthUsd2Pct) : "n/a"}</td>
+                      <td class="score">${fmtNum(r.score, 2)}</td>
+                      <td>${r.explanation || ""}</td>
+                    </tr>`
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          </div>
+        `;
+      }
+
+      async function fetchJson(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`${url.split("/").pop()}: HTTP ${res.status}`);
+        return res.json();
+      }
+
+      async function load() {
+        const status = document.getElementById("status");
+        try {
+          const [regime, pools, shortlist, plans, allocation, alerts, performance] = await Promise.all([
+            fetchJson(REGIME_URL),
+            fetchJson(POOLS_URL),
+            fetchJson(SHORTLIST_URL).catch(() => ({ selected: [], maxPools: 2 })),
+            fetchJson(PLANS_URL).catch(() => ({ plans: [] })),
+            fetchJson(ALLOCATION_URL).catch(() => ({ allocations: [], rationale: [] })),
+            fetchJson(ALERTS_URL).catch(() => ({ alerts: [] })),
+            fetchJson(PERFORMANCE_URL).catch(() => ({ summary: { snapshotCount: 0, regimeCounts: { LOW: 0, MODERATE: 0, HIGH: 0 } } }))
+          ]);
+          render(regime, pools, shortlist, plans, allocation, alerts, performance);
+        } catch (err) {
+          status.innerHTML = `<div class="error">Failed to load Orca dashboard data: ${String(
+            err && err.message ? err.message : err
+          )}</div>`;
+        }
+      }
+
+      load();
+    </script>
+  </body>
+  </html>

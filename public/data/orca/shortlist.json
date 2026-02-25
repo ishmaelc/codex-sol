@@ -1,0 +1,68 @@
+{
+  "generatedAt": "2026-02-24T23:38:16.909Z",
+  "regime": "LOW",
+  "maxPools": 2,
+  "selected": [
+    {
+      "slot": 1,
+      "poolAddress": "5hWJUNTtEtKmKgDXpthJXXRRmJrz5vJ7uJzrUNVdrwLg",
+      "pool": "USDC/JitoSOL",
+      "type": "LST-STABLE",
+      "rank": 3,
+      "score": 56.25,
+      "tvlUsd": 345424.12,
+      "volume24hUsd": 806216.32,
+      "feeAprPct": 42.6,
+      "depthUsd1Pct": 27979.35,
+      "depthUsd2Pct": 53160.77,
+      "depthTvl1PctRatio": 0.081,
+      "reasons": [
+        {
+          "code": "REGIME_MATCH",
+          "message": "LOW regime: prefer carry-ish LST-linked pool"
+        },
+        {
+          "code": "TYPE_TARGET",
+          "message": "Targeting SOL-LST or LST-STABLE exposure"
+        }
+      ]
+    },
+    {
+      "slot": 2,
+      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "rank": 1,
+      "score": 66.69,
+      "tvlUsd": 25864021.36,
+      "volume24hUsd": 151758768.26,
+      "feeAprPct": 85.67,
+      "depthUsd1Pct": 3142478.59,
+      "depthUsd2Pct": 5970709.33,
+      "depthTvl1PctRatio": 0.1215,
+      "reasons": [
+        {
+          "code": "TYPE_TARGET",
+          "message": "Fallback selection due to limited qualifying pools"
+        },
+        {
+          "code": "REGIME_MATCH",
+          "message": "Regime LOW produced fewer than 2 ideal candidates"
+        }
+      ]
+    }
+  ],
+  "constraints": {
+    "minDepthTvl1PctRatio": 0.015,
+    "minTvlUsd": 150000,
+    "minVolume24hUsd": 75000
+  },
+  "summary": {
+    "candidatesConsidered": 8,
+    "selectedCount": 2
+  },
+  "notes": [
+    "Shortlist is capped at 2 concurrent pools by design.",
+    "Two pools selected under regime rules and guardrails."
+  ]
+}
