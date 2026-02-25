@@ -41,9 +41,51 @@
       .header {
         display: flex;
         justify-content: space-between;
-        align-items: baseline;
+        align-items: center;
         gap: 12px;
         margin-bottom: 18px;
+      }
+
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .header-pill {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 8px 10px;
+        background: rgba(255, 255, 255, 0.02);
+        min-width: 220px;
+      }
+
+      .header-pill .title {
+        color: var(--muted);
+        font-size: 0.72rem;
+        margin-bottom: 2px;
+      }
+
+      .header-pill .value {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+
+      .btn {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        color: var(--text);
+        border-radius: 10px;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+
+      .btn[disabled] {
+        opacity: 0.7;
+        cursor: wait;
       }
 
       h1 {
@@ -195,6 +237,52 @@
         gap: 8px;
       }
 
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .input {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--line);
+        color: var(--text);
+        border-radius: 10px;
+        padding: 8px 10px;
+        min-width: 140px;
+      }
+
+      .calc-table td, .calc-table th {
+        font-size: 0.86rem;
+      }
+
+      .calc-table thead th {
+        position: static;
+        top: auto;
+        z-index: auto;
+        box-shadow: none;
+      }
+
+      .gauge {
+        width: 100%;
+        height: 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        overflow: hidden;
+      }
+
+      .gauge-fill {
+        height: 100%;
+        width: 0%;
+        transition: width 160ms ease;
+      }
+
+      .gauge-fill.green { background: linear-gradient(90deg, #2ccf9c, #70f2a8); }
+      .gauge-fill.yellow { background: linear-gradient(90deg, #f0a93a, #ffcf6f); }
+      .gauge-fill.red { background: linear-gradient(90deg, #ff6d6d, #ff9b9b); }
+
       .alert {
         border-radius: 10px;
         padding: 10px 12px;
@@ -282,7 +370,19 @@
     <div class="wrap">
       <div class="header">
         <h1>Orca Regime + Pool Rankings</h1>
-        <div id="updatedAt" class="muted"></div>
+        <div class="header-right">
+          <button id="refreshBtn" class="btn" type="button">Refresh</button>
+          <button id="refreshLiveSpotBtn" class="btn" type="button">Refresh Live Spot</button>
+          <div id="liveSpotCard" class="header-pill">
+            <div class="title">Live SOL Spot</div>
+            <div class="value" id="liveSpotValue">Loading...</div>
+            <div class="muted" id="liveSpotUpdated" style="font-size:0.75rem;"></div>
+            <div class="muted" id="liveSpotError" style="font-size:0.75rem; color:#ffd0d0;"></div>
+          </div>
+          <div id="updatedAt" class="muted"></div>
+          <div id="lastRefreshAttempt" class="muted"></div>
+          <div id="refreshInlineError" class="muted" style="color:#ffd0d0;"></div>
+        </div>
       </div>
       <div id="status" class="status">Loading Orca dashboard data...</div>
       <div id="app"></div>
@@ -296,6 +396,17 @@
       const ALLOCATION_URL = "/data/orca/allocation.json";
       const ALERTS_URL = "/data/orca/alerts.json";
       const PERFORMANCE_URL = "/data/orca/performance.json";
+      const LIVE_SOL_SPOT_URL = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
+      const runtimeState = {
+        latestData: null,
+        calc: null,
+        liveSpot: {
+          priceUsd: null,
+          updatedAt: null,
+          source: "coingecko",
+          error: null
+        }
+      };
 
       function fmtUsd(v) {
         const n = Number(v);
@@ -319,6 +430,12 @@
         return n.toFixed(digits);
       }
 
+      function fmtTime(v) {
+        if (!v) return "n/a";
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? "n/a" : d.toLocaleTimeString();
+      }
+
       function regimeClass(label) {
         return String(label || "").toLowerCase();
       }
@@ -338,6 +455,7 @@
         return `
           <section class="card section">
             <h2>Shortlist (max ${shortlist.maxPools || 2})</h2>
+            <div class="muted" style="margin-bottom:8px;">Selected due to score (feeAPR, volume/TVL, depth, stability) under current regime risk settings.</div>
             <div class="grid-2">
               ${items
                 .filter((x) => x.type !== "STABLE-STABLE")
@@ -436,6 +554,7 @@
         return `
           <section class="card section">
             <h2>Allocation</h2>
+            <div class="muted" style="margin-bottom:8px;">Type-neutral allocation uses shortlisted pool scores; regime still controls risk settings (ranges, hedges, alerts).</div>
             ${
               rows.length === 0
                 ? `<div class="muted">No allocation recommendation available.</div>`
@@ -458,6 +577,377 @@
           </section>`;
       }
 
+      function roundNearest10(n) {
+        return Math.round(Number(n || 0) / 10) * 10;
+      }
+
+      function computeDeployRows(allocation, plans, totalUsd, roundTo10, leverageX, bufferPct) {
+        const allocs = Array.isArray(allocation?.allocations) ? allocation.allocations : [];
+        const planByPool = new Map((Array.isArray(plans?.plans) ? plans.plans : []).map((p) => [p.poolAddress, p]));
+        const warnings = [];
+        const lev = Number.isFinite(Number(leverageX)) && Number(leverageX) > 0 ? Number(leverageX) : 2.5;
+        const buffer = Math.max(0, Math.min(100, Number(bufferPct || 0)));
+        const bufferMultiplier = 1 + buffer / 100;
+        const liveSpot = Number(runtimeState.liveSpot?.priceUsd);
+        const hasLiveSpot = Number.isFinite(liveSpot) && liveSpot > 0;
+        const rows = allocs.map((a) => {
+          const w = Number(a.weightPct || 0) / 100;
+          const rawAlloc = totalUsd * w;
+          const plan = planByPool.get(a.poolAddress);
+          const hedgeUsdPer10k = Number(plan?.hedge?.hedgeUSDPer10k);
+          const hedgeSolPer10k = Number(plan?.hedge?.hedgeSOLPer10k);
+          const hasHedgeUsd = Number.isFinite(hedgeUsdPer10k);
+          const hasHedgeSolFallback = Number.isFinite(hedgeSolPer10k);
+          if (!hasHedgeUsd) warnings.push(`Missing hedge USD sizing field for ${a.pool}`);
+          if (!hasLiveSpot && !hasHedgeSolFallback) warnings.push(`Missing live spot and hedge SOL fallback for ${a.pool}`);
+          const hedgeUsd = hasHedgeUsd ? (rawAlloc / 10000) * hedgeUsdPer10k : null;
+          const hedgeSol = hedgeUsd != null && hasLiveSpot ? hedgeUsd / liveSpot : hasHedgeSolFallback ? (rawAlloc / 10000) * hedgeSolPer10k : null;
+          return {
+            poolAddress: a.poolAddress,
+            pool: a.pool,
+            weightPct: Number(a.weightPct || 0),
+            allocUsd: rawAlloc,
+            hedgeUsd,
+            hedgeSol,
+            collateralUsd: hedgeUsd != null ? hedgeUsd / lev : null,
+            collateralBufferedUsd: hedgeUsd != null ? (hedgeUsd / lev) * bufferMultiplier : null
+          };
+        });
+
+        if (roundTo10 && rows.length > 0) {
+          let roundedSum = 0;
+          for (let i = 0; i < rows.length - 1; i += 1) {
+            rows[i].allocUsd = roundNearest10(rows[i].allocUsd);
+            roundedSum += rows[i].allocUsd;
+          }
+          rows[rows.length - 1].allocUsd = Math.max(0, Number(totalUsd) - roundedSum);
+          for (const r of rows) {
+            const plan = planByPool.get(r.poolAddress);
+            const hedgeUsdPer10k = Number(plan?.hedge?.hedgeUSDPer10k);
+            const hedgeSolPer10k = Number(plan?.hedge?.hedgeSOLPer10k);
+            if (Number.isFinite(hedgeUsdPer10k)) {
+              r.hedgeUsd = (r.allocUsd / 10000) * hedgeUsdPer10k;
+              if (hasLiveSpot) r.hedgeSol = r.hedgeUsd / liveSpot;
+              else if (Number.isFinite(hedgeSolPer10k)) r.hedgeSol = (r.allocUsd / 10000) * hedgeSolPer10k;
+              r.collateralUsd = r.hedgeUsd / lev;
+              r.collateralBufferedUsd = r.collateralUsd * bufferMultiplier;
+            }
+          }
+        }
+
+        const totalAllocation = rows.reduce((a, r) => a + (Number(r.allocUsd) || 0), 0);
+        const totalHedgeUsd = rows.reduce((a, r) => a + (Number.isFinite(r.hedgeUsd) ? r.hedgeUsd : 0), 0);
+        const totalHedgeSol = rows.reduce((a, r) => a + (Number.isFinite(r.hedgeSol) ? r.hedgeSol : 0), 0);
+        const totalCollateralBase = rows.reduce((a, r) => a + (Number.isFinite(r.collateralUsd) ? r.collateralUsd : 0), 0);
+        const totalCollateralBuffered = rows.reduce((a, r) => a + (Number.isFinite(r.collateralBufferedUsd) ? r.collateralBufferedUsd : 0), 0);
+        const totalCapitalRequired = totalAllocation + totalCollateralBuffered;
+        return {
+          rows,
+          warnings,
+          totalAllocation,
+          totalHedgeUsd,
+          totalHedgeSol,
+          totalCollateralBase,
+          totalCollateralBuffered,
+          totalCapitalRequired,
+          bufferMultiplier
+        };
+      }
+
+      function calcSpotForLiquidation(plans) {
+        const live = Number(runtimeState.liveSpot?.priceUsd);
+        if (Number.isFinite(live) && live > 0) return { spot: live, label: "live SOL spot" };
+        const spots = (Array.isArray(plans?.plans) ? plans.plans : [])
+          .map((p) => Number(p?.spotPrice))
+          .filter((x) => Number.isFinite(x) && x > 0);
+        if (spots.length === 0) return { spot: null, label: "n/a" };
+        if (spots.length === 1) return { spot: spots[0], label: "first plan spot" };
+        const avg = spots.reduce((a, b) => a + b, 0) / spots.length;
+        return { spot: avg, label: "avg plan spot" };
+      }
+
+      function liquidationBand(adversePct) {
+        if (adversePct >= 20) return "green";
+        if (adversePct >= 12) return "yellow";
+        return "red";
+      }
+
+      function computeLiqBuffer(calc, plans, mmrPct) {
+        const notional = Number(calc?.totalHedgeUsd || 0);
+        const collateral = Number(calc?.totalCollateralBuffered || 0);
+        const mmr = Math.max(0, Number(mmrPct || 0)) / 100;
+        const spotRef = calcSpotForLiquidation(plans);
+        let xLiq = notional > 0 ? collateral / notional - mmr : 0;
+        const insufficient = xLiq <= 0;
+        xLiq = Math.max(0, xLiq);
+        const liqPriceApprox = spotRef.spot && xLiq > 0 ? spotRef.spot * (1 + xLiq) : null;
+
+        const shocks = [5, 10, 15, 20].map((shockPct) => {
+          const equityAfter = collateral - notional * (shockPct / 100);
+          const marginRatioAfter = notional > 0 ? equityAfter / notional : 0;
+          return {
+            shockPct,
+            equityAfter,
+            marginRatioAfter,
+            liqRisk: marginRatioAfter <= mmr
+          };
+        });
+
+        return { notional, collateral, mmr, xLiq, insufficient, liqPriceApprox, spotRef, shocks };
+      }
+
+      function renderDeployCalculator(allocation, plans) {
+        const calcId = `deploy-calc-${Math.random().toString(36).slice(2, 8)}`;
+        const rows = Array.isArray(allocation?.allocations) ? allocation.allocations : [];
+        return `
+          <section class="card section" id="${calcId}">
+            <h2>Deploy Calculator</h2>
+            <div class="row" style="margin-bottom:10px;">
+              <label class="muted">Total Deposit (USD)</label>
+              <input class="input" type="number" min="0" step="10" value="3000" data-role="deposit" />
+              <label class="muted row" style="gap:6px;">
+                <input type="checkbox" checked data-role="round10" />
+                <span>Round to nearest $10</span>
+              </label>
+              <label class="muted">Leverage (x)</label>
+              <input class="input" type="number" min="0.1" step="0.1" value="2.5" data-role="leverage" style="min-width:90px;" />
+              <label class="muted">Collateral Buffer %</label>
+              <input class="input" type="number" min="0" max="100" step="1" value="30" data-role="bufferPct" style="min-width:90px;" />
+            </div>
+            <div class="muted" style="margin-bottom:10px; font-size:0.82rem;">Buffer increases required collateral to reduce liquidation risk.</div>
+            ${
+              rows.length === 0
+                ? `<div class="muted">No allocation rows available.</div>`
+                : `<div data-role="calc-out"></div>`
+            }
+            <div class="muted" style="margin-top:10px; font-size:0.82rem;">
+              Hedge sizing derived from plan hedge per $10k and scaled to your total deployment; assumes SHORT_SOL.
+              <br/>Collateral = hedge notional / leverage; excludes buffer and fees. Recommended to add safety buffer.
+              <br/>Collateral assumes fixed leverage and does not account for funding, fees, or rapid price gaps. Maintain additional margin if volatility increases.
+            </div>
+          </section>`;
+      }
+
+      function renderLiqBufferCard() {
+        const id = `liq-buffer-${Math.random().toString(36).slice(2, 8)}`;
+        return `
+          <section class="card section" id="${id}">
+            <h2>Liquidation Buffer (Hedge)</h2>
+            <div class="row" style="margin-bottom:10px;">
+              <label class="muted">Maintenance Margin %</label>
+              <input class="input" type="number" min="0" max="100" step="0.1" value="6.0" data-role="mmrPct" style="min-width:90px;" />
+              <span class="muted" data-role="liq-shared"></span>
+            </div>
+            <div data-role="liq-out"></div>
+            <div class="muted" style="margin-top:10px; font-size:0.82rem;">
+              This is a planning approximation. Actual Jupiter liquidation depends on their margin model, fees, and oracle pricing. Use as a buffer gauge.
+            </div>
+          </section>`;
+      }
+
+      function mountDeployCalculator(sectionEl, allocation, plans) {
+        if (!sectionEl) return;
+        const depositInput = sectionEl.querySelector('[data-role="deposit"]');
+        const roundInput = sectionEl.querySelector('[data-role="round10"]');
+        const leverageInput = sectionEl.querySelector('[data-role="leverage"]');
+        const bufferInput = sectionEl.querySelector('[data-role="bufferPct"]');
+        const out = sectionEl.querySelector('[data-role="calc-out"]');
+        if (!depositInput || !roundInput || !leverageInput || !bufferInput || !out) return;
+
+        const renderCalc = () => {
+          const totalUsd = Math.max(0, Number(depositInput.value || 0));
+          const roundTo10 = Boolean(roundInput.checked);
+          const leverageX = Math.max(0.1, Number(leverageInput.value || 2.5));
+          const bufferPct = Math.max(0, Math.min(100, Number(bufferInput.value || 30)));
+          const calc = computeDeployRows(allocation, plans, totalUsd, roundTo10, leverageX, bufferPct);
+          runtimeState.calc = {
+            ...calc,
+            totalUsd,
+            roundTo10,
+            leverageX,
+            bufferPct
+          };
+          out.innerHTML = `
+            ${calc.warnings.length ? `<div class="muted" style="color:#ffd0d0; margin-bottom:8px;">${calc.warnings.map(escapeHtml).join("<br/>")}</div>` : ""}
+            <table class="calc-table">
+              <thead>
+                <tr>
+                  <th>Pool</th>
+                  <th>Weight %</th>
+                  <th>Allocation USD</th>
+                  <th>Hedge USD</th>
+                  <th>Hedge SOL</th>
+                  <th>Collateral (${fmtNum(leverageX, 2)}x)</th>
+                  <th>Collateral w/ Buffer</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${calc.rows
+                  .map(
+                    (r) => `<tr>
+                      <td>${escapeHtml(r.pool)}</td>
+                      <td>${fmtNum(r.weightPct, 0)}%</td>
+                      <td>${fmtUsd(r.allocUsd)}</td>
+                      <td>${Number.isFinite(r.hedgeUsd) ? fmtUsd(r.hedgeUsd) : "—"}</td>
+                      <td>${Number.isFinite(r.hedgeSol) ? fmtNum(r.hedgeSol, 4) : "—"}</td>
+                      <td>${Number.isFinite(r.collateralUsd) ? fmtUsd(r.collateralUsd) : "—"}</td>
+                      <td>${Number.isFinite(r.collateralBufferedUsd) ? fmtUsd(r.collateralBufferedUsd) : "—"}</td>
+                    </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>`;
+          out.innerHTML += `
+            <div class="mini-card" style="margin-top:10px;">
+              <div class="kv">
+                <div class="k">Total LP Deposit</div><div><strong>${fmtUsd(calc.totalAllocation)}</strong></div>
+                <div class="k">Total Hedge USD</div><div><strong>${fmtUsd(calc.totalHedgeUsd)}</strong></div>
+                <div class="k">Total Hedge SOL</div><div><strong>${fmtNum(calc.totalHedgeSol, 4)}</strong></div>
+                <div class="k">Total Collateral (Base)</div><div><strong>${fmtUsd(calc.totalCollateralBase)}</strong></div>
+                <div class="k">Total Collateral (Buffered)</div><div><strong>${fmtUsd(calc.totalCollateralBuffered)}</strong> <span class="muted">(${fmtNum((calc.bufferMultiplier - 1) * 100, 0)}% buffer)</span></div>
+                <div class="k">Total Capital Required</div><div><strong>${fmtUsd(calc.totalCapitalRequired)}</strong></div>
+              </div>
+            </div>`;
+          };
+
+        depositInput.addEventListener("input", renderCalc);
+        roundInput.addEventListener("change", renderCalc);
+        leverageInput.addEventListener("input", renderCalc);
+        bufferInput.addEventListener("input", renderCalc);
+        renderCalc();
+      }
+
+      function mountLiqBuffer(sectionEl, deploySection, plans) {
+        if (!sectionEl || !deploySection) return;
+        const out = sectionEl.querySelector('[data-role="liq-out"]');
+        const mmrInput = sectionEl.querySelector('[data-role="mmrPct"]');
+        const shared = sectionEl.querySelector('[data-role="liq-shared"]');
+        const leverageInput = deploySection.querySelector('[data-role="leverage"]');
+        const bufferInput = deploySection.querySelector('[data-role="bufferPct"]');
+        const depositInput = deploySection.querySelector('[data-role="deposit"]');
+        if (!out || !mmrInput || !shared || !leverageInput || !bufferInput || !depositInput) return;
+
+        const renderLiq = () => {
+          const calc = runtimeState.calc;
+          const mmrPct = Math.max(0, Math.min(100, Number(mmrInput.value || 6)));
+          shared.textContent = `Using leverage ${Number(leverageInput.value || 2.5).toFixed(2)}x and buffer ${Number(bufferInput.value || 30).toFixed(0)}% from Deploy Calculator`;
+          if (!calc) {
+            out.innerHTML = `<div class="muted">Waiting for deploy calculator values...</div>`;
+            return;
+          }
+          const liq = computeLiqBuffer(calc, plans, mmrPct);
+          const adversePct = liq.xLiq * 100;
+          const gaugeClass = liquidationBand(adversePct);
+          const gaugeWidth = Math.max(0, Math.min(100, (adversePct / 30) * 100));
+
+          out.innerHTML = `
+            <div class="mini-card">
+              <div class="kv">
+                <div class="k">Total Hedge Notional</div><div>${fmtUsd(liq.notional)}</div>
+                <div class="k">Buffered Collateral</div><div>${fmtUsd(liq.collateral)}</div>
+                <div class="k">MMR</div><div>${fmtPct(mmrPct)}</div>
+                <div class="k">Spot Reference</div><div>${liq.spotRef.spot != null ? `${fmtNum(liq.spotRef.spot, 4)} (${escapeHtml(liq.spotRef.label)})` : "n/a"}</div>
+                <div class="k">Approx Liq Price</div><div>${liq.liqPriceApprox != null ? fmtNum(liq.liqPriceApprox, 4) : liq.insufficient ? "INSUFFICIENT COLLATERAL / TOO MUCH LEVERAGE" : "n/a"}</div>
+              </div>
+              <div style="margin-top:10px;">
+                <div class="muted" style="margin-bottom:6px;">Adverse move to liquidation (approx): <strong>${fmtNum(adversePct, 2)}%</strong></div>
+                <div class="gauge"><div class="gauge-fill ${gaugeClass}" style="width:${gaugeWidth}%;"></div></div>
+              </div>
+            </div>
+            <div class="mini-card" style="margin-top:10px;">
+              <div class="muted" style="margin-bottom:6px;">Scenario shocks</div>
+              <table class="calc-table">
+                <thead>
+                  <tr>
+                    <th>Shock</th>
+                    <th>Equity After</th>
+                    <th>Margin Ratio After</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${liq.shocks
+                    .map((s) => `<tr>
+                      <td>+${fmtNum(s.shockPct, 0)}%</td>
+                      <td>${fmtUsd(s.equityAfter)}</td>
+                      <td>${fmtPct(s.marginRatioAfter * 100, 2)}</td>
+                      <td>${s.liqRisk ? '<span style="color:#ff9b9b;">LIQ RISK</span>' : '<span style="color:#9be7b4;">OK</span>'}</td>
+                    </tr>`)
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          `;
+          if (liq.insufficient) {
+            out.innerHTML = `<div class="error">INSUFFICIENT COLLATERAL / TOO MUCH LEVERAGE under current buffer and MMR assumptions.</div>` + out.innerHTML;
+          }
+        };
+
+        mmrInput.addEventListener("input", renderLiq);
+        leverageInput.addEventListener("input", renderLiq);
+        bufferInput.addEventListener("input", renderLiq);
+        depositInput.addEventListener("input", renderLiq);
+        const roundToggle = deploySection.querySelector('[data-role="round10"]');
+        if (roundToggle) roundToggle.addEventListener("change", renderLiq);
+        sectionEl._renderLiq = renderLiq;
+        renderLiq();
+      }
+
+      function renderLiveSpotHeader() {
+        const valueEl = document.getElementById("liveSpotValue");
+        const updatedEl = document.getElementById("liveSpotUpdated");
+        const errEl = document.getElementById("liveSpotError");
+        if (!valueEl || !updatedEl || !errEl) return;
+        const price = Number(runtimeState.liveSpot?.priceUsd);
+        valueEl.textContent = Number.isFinite(price) && price > 0 ? fmtUsd(price) : "Unavailable";
+        updatedEl.textContent = `Live spot updated: ${fmtTime(runtimeState.liveSpot?.updatedAt)}`;
+        errEl.textContent = runtimeState.liveSpot?.error ? `Live spot error: ${runtimeState.liveSpot.error}` : "";
+      }
+
+      async function fetchLiveSolSpot() {
+        const url = `${LIVE_SOL_SPOT_URL}&t=${Date.now()}`;
+        const res = await fetch(url, {
+          headers: { "cache-control": "no-cache" }
+        });
+        if (!res.ok) throw new Error(`live spot HTTP ${res.status}`);
+        const payload = await res.json();
+        const price = Number(payload?.solana?.usd);
+        if (!Number.isFinite(price) || price <= 0) throw new Error("invalid live spot payload");
+        return price;
+      }
+
+      async function loadLiveSpot(options = {}) {
+        const btn = document.getElementById("refreshLiveSpotBtn");
+        const manual = Boolean(options.manual);
+        if (btn && manual) {
+          btn.disabled = true;
+          btn.textContent = "Refreshing...";
+        }
+        try {
+          const price = await fetchLiveSolSpot();
+          runtimeState.liveSpot.priceUsd = price;
+          runtimeState.liveSpot.updatedAt = new Date().toISOString();
+          runtimeState.liveSpot.error = null;
+          renderLiveSpotHeader();
+          const app = document.getElementById("app");
+          const liqSection = app?.querySelector?.('[id^="liq-buffer-"]');
+          if (liqSection && typeof liqSection._renderLiq === "function") liqSection._renderLiq();
+          const deploySection = app?.querySelector?.('[id^="deploy-calc-"]');
+          if (deploySection) {
+            const depositInput = deploySection.querySelector('[data-role="deposit"]');
+            if (depositInput) depositInput.dispatchEvent(new Event("input"));
+          }
+        } catch (err) {
+          runtimeState.liveSpot.error = String(err && err.message ? err.message : err);
+          renderLiveSpotHeader();
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Refresh Live Spot";
+          }
+        }
+      }
+
       function renderPerformance(perf) {
         const summary = perf?.summary || {};
         return `
@@ -477,7 +967,7 @@
         const updatedAt = document.getElementById("updatedAt");
         const status = document.getElementById("status");
 
-        updatedAt.textContent = `Regime: ${regime.regime || "n/a"} | Updated ${new Date(
+        updatedAt.textContent = `Regime: ${regime.regime || "n/a"} | Data updated: ${new Date(
           regime.generatedAt || pools.generatedAt || Date.now()
         ).toLocaleString()}`;
         const allRows = Array.isArray(pools.topPoolsOverall) ? pools.topPoolsOverall : Array.isArray(pools.pools) ? pools.pools : [];
@@ -515,6 +1005,8 @@
           ${renderShortlist(shortlist)}
           ${renderPlans(plans)}
           ${renderAllocation(allocation)}
+          ${renderDeployCalculator(allocation, plans)}
+          ${renderLiqBufferCard()}
           ${renderAlerts(alerts)}
           ${renderPerformance(performance)}
 
@@ -563,35 +1055,76 @@
           </section>
           </div>
         `;
+
+        const deploySection = app.querySelector('[id^="deploy-calc-"]');
+        const liqSection = app.querySelector('[id^="liq-buffer-"]');
+        mountDeployCalculator(deploySection, allocation, plans);
+        mountLiqBuffer(liqSection, deploySection, plans);
       }
 
-      async function fetchJson(url) {
-        const res = await fetch(url);
+      async function fetchJson(url, cacheBustTs) {
+        const finalUrl = cacheBustTs ? `${url}${url.includes("?") ? "&" : "?"}t=${cacheBustTs}` : url;
+        const res = await fetch(finalUrl);
         if (!res.ok) throw new Error(`${url.split("/").pop()}: HTTP ${res.status}`);
         return res.json();
       }
 
-      async function load() {
+      async function load(options = {}) {
         const status = document.getElementById("status");
+        const refreshBtn = document.getElementById("refreshBtn");
+        const refreshErr = document.getElementById("refreshInlineError");
+        const lastAttempt = document.getElementById("lastRefreshAttempt");
+        const manual = Boolean(options.manual);
+        const cacheBustTs = options.cacheBust ? Date.now() : undefined;
+        if (lastAttempt) lastAttempt.textContent = `Last refresh attempt: ${new Date().toLocaleTimeString()}`;
+        if (refreshErr) refreshErr.textContent = "";
+        if (refreshBtn && manual) {
+          refreshBtn.disabled = true;
+          refreshBtn.textContent = "Refreshing...";
+        }
         try {
           const [regime, pools, shortlist, plans, allocation, alerts, performance] = await Promise.all([
-            fetchJson(REGIME_URL),
-            fetchJson(POOLS_URL),
-            fetchJson(SHORTLIST_URL).catch(() => ({ selected: [], maxPools: 2 })),
-            fetchJson(PLANS_URL).catch(() => ({ plans: [] })),
-            fetchJson(ALLOCATION_URL).catch(() => ({ allocations: [], rationale: [] })),
-            fetchJson(ALERTS_URL).catch(() => ({ alerts: [] })),
-            fetchJson(PERFORMANCE_URL).catch(() => ({ summary: { snapshotCount: 0, regimeCounts: { LOW: 0, MODERATE: 0, HIGH: 0 } } }))
+            fetchJson(REGIME_URL, cacheBustTs),
+            fetchJson(POOLS_URL, cacheBustTs),
+            fetchJson(SHORTLIST_URL, cacheBustTs).catch(() => ({ selected: [], maxPools: 2 })),
+            fetchJson(PLANS_URL, cacheBustTs).catch(() => ({ plans: [] })),
+            fetchJson(ALLOCATION_URL, cacheBustTs).catch(() => ({ allocations: [], rationale: [] })),
+            fetchJson(ALERTS_URL, cacheBustTs).catch(() => ({ alerts: [] })),
+            fetchJson(PERFORMANCE_URL, cacheBustTs).catch(() => ({ summary: { snapshotCount: 0, regimeCounts: { LOW: 0, MODERATE: 0, HIGH: 0 } } }))
           ]);
+          runtimeState.latestData = { regime, pools, shortlist, plans, allocation, alerts, performance };
           render(regime, pools, shortlist, plans, allocation, alerts, performance);
         } catch (err) {
-          status.innerHTML = `<div class="error">Failed to load Orca dashboard data: ${String(
-            err && err.message ? err.message : err
-          )}</div>`;
+          const msg = String(err && err.message ? err.message : err);
+          if (manual && refreshErr) {
+            refreshErr.textContent = `Refresh failed: ${msg}`;
+          } else {
+            status.innerHTML = `<div class="error">Failed to load Orca dashboard data: ${msg}</div>`;
+          }
+        } finally {
+          if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = "Refresh";
+          }
         }
       }
 
+      const refreshBtn = document.getElementById("refreshBtn");
+      if (refreshBtn) {
+        refreshBtn.addEventListener("click", () => {
+          load({ manual: true, cacheBust: true });
+        });
+      }
+
+      const refreshLiveSpotBtn = document.getElementById("refreshLiveSpotBtn");
+      if (refreshLiveSpotBtn) {
+        refreshLiveSpotBtn.addEventListener("click", () => {
+          loadLiveSpot({ manual: true });
+        });
+      }
+
       load();
+      loadLiveSpot();
     </script>
   </body>
   </html>

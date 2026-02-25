@@ -19,7 +19,6 @@ export function buildAllocationRecommendation(args: {
   rankings: PoolRankingOutput;
 }): AllocationOutput {
   const selected = args.shortlist.selected;
-  const topRows = new Map((args.rankings.topPoolsOverall ?? args.rankings.pools).map((p) => [p.poolAddress, p]));
   const rationale: string[] = [];
 
   if (selected.length === 0) {
@@ -37,41 +36,9 @@ export function buildAllocationRecommendation(args: {
   if (selected.length === 1) {
     weightHints = [1];
     rationale.push("Only one pool qualified; allocate 100% to the sole shortlist pool.");
-  } else if (args.regime.regime === "LOW") {
-    const carryIdx = selected.findIndex((x) => x.type === "SOL-LST" || x.type === "LST-STABLE");
-    const solStableIdx = selected.findIndex((x) => x.type === "SOL-STABLE");
-    if (carryIdx >= 0 && solStableIdx >= 0) {
-      weightHints = selected.map((_, i) => (i === carryIdx ? 60 : i === solStableIdx ? 40 : 0));
-      rationale.push("LOW regime: 60% carry-ish (SOL-LST/LST-STABLE), 40% SOL-STABLE anchor.");
-    } else if (solStableIdx >= 0) {
-      weightHints = selected.map((_, i) => (i === solStableIdx ? 100 : 0));
-      rationale.push("LOW regime: only SOL-STABLE available among preferred types, allocate 100% SOL-STABLE.");
-    } else {
-      weightHints = selected.map((_, i) => (i === 0 ? 60 : 40));
-      rationale.push("LOW regime fallback: overweight first non-SOL-STABLE shortlisted pool.");
-    }
-  } else if (args.regime.regime === "MODERATE") {
-    weightHints = selected.map(() => 50);
-    rationale.push("MODERATE regime: balanced 50/50 split across two shortlisted pools.");
   } else {
-    const scored = selected
-      .map((s, i) => {
-        const row = topRows.get(s.poolAddress);
-        const depthScore = (row?.depthUsd1Pct ?? 0) + 0.5 * (row?.depthUsd2Pct ?? 0);
-        return { idx: i, type: s.type, composite: depthScore + s.score * 1_000 };
-      })
-      .sort((a, b) => b.composite - a.composite);
-    const first = scored[0];
-    const second = scored[1];
-    if (first && second) {
-      const secondCap = second.type === "SOL-STABLE" ? 30 : 20;
-      weightHints = selected.map((_, i) => (i === first.idx ? 100 - secondCap : i === second.idx ? secondCap : 0));
-      rationale.push(
-        second.type === "SOL-STABLE"
-          ? "HIGH regime: 70/30 split toward deepest/highest-score SOL-STABLE pair."
-          : "HIGH regime: second pool is not SOL-STABLE, capped at 20%."
-      );
-    }
+    weightHints = selected.map((s) => Math.max(0, s.score));
+    rationale.push("Type-neutral allocation: weights derived from relative scores.");
   }
 
   const weights = normalizeWeights(weightHints.map((w) => ({ w })));
@@ -80,10 +47,7 @@ export function buildAllocationRecommendation(args: {
     pool: s.pool,
     type: s.type,
     weightPct: weights[i] ?? 0,
-    rationale:
-      args.regime.regime === "HIGH" && s.type !== "SOL-STABLE"
-        ? "Secondary non-SOL-STABLE capped in HIGH regime."
-        : `${args.regime.regime} regime allocation rule`
+    rationale: "Type-neutral allocation: weights derived from relative scores."
   }));
 
   return {

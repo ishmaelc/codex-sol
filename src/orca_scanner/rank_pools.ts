@@ -76,7 +76,7 @@ function scorePool(args: {
   onchain?: OnchainPoolEnrichment;
   stability?: PoolStabilityMetric;
 }): { score: number; explanation: string; feeApr: number; volumeTvlRatio: number } {
-  const { pool, regime, universeType, onchain, stability } = args;
+  const { pool, onchain, stability } = args;
   const feeApr = feeAprPct(pool);
   const turnover = volumeTvl(pool);
   const depth1 = onchain?.depthUsd1Pct ?? 0;
@@ -88,19 +88,8 @@ function scorePool(args: {
   const validationBonus = onchain?.validated ? 0.05 : 0;
   const rewardPenalty = pool.rewardsActiveCount > 0 ? 0.03 : 0;
 
-  let regimeBonus = 0;
-  if (regime.regime === "HIGH") {
-    regimeBonus += clamp(turnover / 2, 0, 0.08);
-    if (universeType === "SOL-STABLE") regimeBonus += 0.02;
-  } else if (regime.regime === "LOW") {
-    if (universeType === "LST-LST") regimeBonus += 0.03;
-    regimeBonus += clamp(depthNorm * 0.05, 0, 0.05);
-  } else {
-    if (universeType === "SOL-LST") regimeBonus += 0.02;
-  }
-
   const raw =
-    0.34 * feeAprNorm + 0.28 * turnoverNorm + 0.2 * depthNorm + 0.13 * tvlNorm + validationBonus + regimeBonus - rewardPenalty;
+    0.34 * feeAprNorm + 0.28 * turnoverNorm + 0.2 * depthNorm + 0.13 * tvlNorm + validationBonus - rewardPenalty;
   const baseScore = clamp(raw, 0, 1) * 100;
   const stabilityScore = clamp(stability?.stabilityScore ?? 0.5, 0, 1);
   const score = baseScore * (0.6 + 0.4 * stabilityScore);
@@ -111,7 +100,6 @@ function scorePool(args: {
   if (onchain?.depthUsd1Pct != null) notes.push(`depth±1% ~$${Math.round(onchain.depthUsd1Pct).toLocaleString()}`);
   if (stability?.stabilityScore != null) notes.push(`stability ${(stability.stabilityScore * 100).toFixed(0)}%`);
   if (pool.rewardsActiveCount > 0) notes.push(`${pool.rewardsActiveCount} active reward${pool.rewardsActiveCount > 1 ? "s" : ""}`);
-  if (regimeBonus > 0.01) notes.push(`${regime.regime.toLowerCase()} regime tilt`);
   if (stability?.stabilityNote) notes.push("stability history sparse");
 
   return {

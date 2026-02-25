@@ -55,23 +55,14 @@ function toItem(slot: 1 | 2, pool: RankedPool, extra: ShortlistDecisionReason[])
   };
 }
 
-function pickBest(candidates: RankedPool[], used: Set<string>): RankedPool | undefined {
-  return candidates.filter((p) => !used.has(p.poolAddress)).sort((a, b) => rankKey(b) - rankKey(a))[0];
-}
-
 export function decideShortlist(args: { regime: RegimeState; rankings: PoolRankingOutput }): ShortlistOutput {
   const source = (args.rankings.topPoolsOverall ?? args.rankings.pools ?? []).filter((p) => isVisibleType(p.type));
-  const screened = source
-    .map((pool) => ({ pool, guard: passesGuardrails(pool) }))
+  const screened = source.map((pool) => ({ pool, guard: passesGuardrails(pool) }));
+  const passing = screened
     .filter((x) => x.guard.ok)
-    .map((x) => x.pool);
-
-  const byType = {
-    "SOL-STABLE": screened.filter((p) => p.type === "SOL-STABLE"),
-    "SOL-LST": screened.filter((p) => p.type === "SOL-LST"),
-    "LST-STABLE": screened.filter((p) => p.type === "LST-STABLE"),
-    "LST-LST": screened.filter((p) => p.type === "LST-LST")
-  };
+    .map((x) => x.pool)
+    .sort((a, b) => rankKey(b) - rankKey(a))
+    .slice(0, SHORTLIST_MAX);
 
   const selected: ShortlistItem[] = [];
   const used = new Set<string>();
@@ -81,48 +72,17 @@ export function decideShortlist(args: { regime: RegimeState; rankings: PoolRanki
     used.add(pool.poolAddress);
   };
 
-  const exceptionalSolStable = byType["SOL-STABLE"].find(
-    (p) => (p.depthTvl1PctRatio ?? 0) >= 0.025 && p.feeAprPct >= 25 && p.score >= 75
-  );
-
-  if (args.regime.regime === "LOW") {
-    add(pickBest([...byType["SOL-LST"], ...byType["LST-STABLE"]], used), [
-      { code: "REGIME_MATCH", message: "LOW regime: prefer carry-ish LST-linked pool" },
-      { code: "TYPE_TARGET", message: "Targeting SOL-LST or LST-STABLE exposure" }
+  for (const p of passing) {
+    add(p, [
+      {
+        code: "REGIME_MATCH",
+        message: `Selected by final score under current regime risk settings (range/hedge/alerts remain regime-aware).`
+      },
+      {
+        code: "TYPE_TARGET",
+        message: "Type-neutral shortlist: ranked on feeAPR, volume/TVL, depth, and stability after guardrails."
+      }
     ]);
-    add(exceptionalSolStable, [
-      { code: "EXCEPTIONAL_SOL_STABLE", message: "LOW regime exception: SOL-STABLE retained due to strong depth + feeAPR" },
-      { code: "REGIME_MATCH", message: "Optional second slot only for exceptional SOL-STABLE quality" }
-    ]);
-  } else if (args.regime.regime === "MODERATE") {
-    add(pickBest(byType["SOL-STABLE"], used), [
-      { code: "REGIME_MATCH", message: "MODERATE regime: target one SOL-STABLE anchor" },
-      { code: "TYPE_TARGET", message: "Balanced slot 1 = SOL-STABLE" }
-    ]);
-    add(pickBest([...byType["SOL-LST"], ...byType["LST-STABLE"]], used), [
-      { code: "REGIME_MATCH", message: "MODERATE regime: second slot favors LST-linked carry" },
-      { code: "TYPE_TARGET", message: "Balanced slot 2 = SOL-LST or LST-STABLE" }
-    ]);
-  } else {
-    add(pickBest(byType["SOL-STABLE"], used), [
-      { code: "REGIME_MATCH", message: "HIGH regime: prefer SOL-STABLE with strongest depth + feeAPR" }
-    ]);
-    add(pickBest(byType["SOL-STABLE"], used), [
-      { code: "REGIME_MATCH", message: "HIGH regime: second SOL-STABLE slot for high-turnover conditions" }
-    ]);
-  }
-
-  if (selected.length < SHORTLIST_MAX) {
-    const fallback = screened
-      .filter((p) => !used.has(p.poolAddress))
-      .sort((a, b) => rankKey(b) - rankKey(a));
-    for (const p of fallback) {
-      add(p, [
-        { code: "TYPE_TARGET", message: "Fallback selection due to limited qualifying pools" },
-        { code: "REGIME_MATCH", message: `Regime ${args.regime.regime} produced fewer than ${SHORTLIST_MAX} ideal candidates` }
-      ]);
-      if (selected.length >= SHORTLIST_MAX) break;
-    }
   }
 
   return {
@@ -142,8 +102,8 @@ export function decideShortlist(args: { regime: RegimeState; rankings: PoolRanki
     notes: [
       "Shortlist is capped at 2 concurrent pools by design.",
       selected.length < SHORTLIST_MAX
-        ? `Only ${selected.length} pool(s) passed regime fit + guardrails.`
-        : "Two pools selected under regime rules and guardrails."
+        ? `Only ${selected.length} pool(s) passed guardrails; shortlist returns fewer than 2 with explanation.`
+        : "Two top-scoring pools selected under guardrails (type-neutral)."
     ]
   };
 }

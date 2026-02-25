@@ -1,53 +1,53 @@
 {
-  "generatedAt": "2026-02-24T23:38:16.909Z",
+  "generatedAt": "2026-02-25T03:11:25.361Z",
   "regime": "LOW",
   "maxPools": 2,
   "selected": [
     {
       "slot": 1,
-      "poolAddress": "5hWJUNTtEtKmKgDXpthJXXRRmJrz5vJ7uJzrUNVdrwLg",
-      "pool": "USDC/JitoSOL",
-      "type": "LST-STABLE",
-      "rank": 3,
-      "score": 56.25,
-      "tvlUsd": 345424.12,
-      "volume24hUsd": 806216.32,
-      "feeAprPct": 42.6,
-      "depthUsd1Pct": 27979.35,
-      "depthUsd2Pct": 53160.77,
-      "depthTvl1PctRatio": 0.081,
+      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "rank": 1,
+      "score": 89.97,
+      "tvlUsd": 26521373.04,
+      "volume24hUsd": 157316699.48,
+      "feeAprPct": 86.6,
+      "depthUsd1Pct": 3222346.82,
+      "depthUsd2Pct": 6122458.97,
+      "depthTvl1PctRatio": 0.1215,
       "reasons": [
         {
           "code": "REGIME_MATCH",
-          "message": "LOW regime: prefer carry-ish LST-linked pool"
+          "message": "Selected by final score under current regime risk settings (range/hedge/alerts remain regime-aware)."
         },
         {
           "code": "TYPE_TARGET",
-          "message": "Targeting SOL-LST or LST-STABLE exposure"
+          "message": "Type-neutral shortlist: ranked on feeAPR, volume/TVL, depth, and stability after guardrails."
         }
       ]
     },
     {
       "slot": 2,
-      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "poolAddress": "9VuCJupdVXC1kKijULJQ2GPKPvk2kSMHtgvwDuQq3TDo",
       "pool": "SOL/USDC",
       "type": "SOL-STABLE",
-      "rank": 1,
-      "score": 66.69,
-      "tvlUsd": 25864021.36,
-      "volume24hUsd": 151758768.26,
-      "feeAprPct": 85.67,
-      "depthUsd1Pct": 3142478.59,
-      "depthUsd2Pct": 5970709.33,
-      "depthTvl1PctRatio": 0.1215,
+      "rank": 2,
+      "score": 76.89,
+      "tvlUsd": 407861.51,
+      "volume24hUsd": 437578.85,
+      "feeAprPct": 62.66,
+      "depthUsd1Pct": 16518.39,
+      "depthUsd2Pct": 31384.94,
+      "depthTvl1PctRatio": 0.0405,
       "reasons": [
         {
-          "code": "TYPE_TARGET",
-          "message": "Fallback selection due to limited qualifying pools"
+          "code": "REGIME_MATCH",
+          "message": "Selected by final score under current regime risk settings (range/hedge/alerts remain regime-aware)."
         },
         {
-          "code": "REGIME_MATCH",
-          "message": "Regime LOW produced fewer than 2 ideal candidates"
+          "code": "TYPE_TARGET",
+          "message": "Type-neutral shortlist: ranked on feeAPR, volume/TVL, depth, and stability after guardrails."
         }
       ]
     }
@@ -63,6 +63,6 @@
   },
   "notes": [
     "Shortlist is capped at 2 concurrent pools by design.",
-    "Two pools selected under regime rules and guardrails."
+    "Two top-scoring pools selected under guardrails (type-neutral)."
   ]
 }
