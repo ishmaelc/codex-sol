@@ -396,6 +396,7 @@
       const ALLOCATION_URL = "/data/orca/allocation.json";
       const ALERTS_URL = "/data/orca/alerts.json";
       const PERFORMANCE_URL = "/data/orca/performance.json";
+      const LIVE_SOL_SPOT_PROXY_URL = "/api/sol-spot";
       const LIVE_SOL_SPOT_URL = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
       const runtimeState = {
         latestData: null,
@@ -905,7 +906,23 @@
       }
 
       async function fetchLiveSolSpot() {
-        const url = `${LIVE_SOL_SPOT_URL}&t=${Date.now()}`;
+        const ts = Date.now();
+
+        // Prefer same-origin proxy on Vercel to avoid browser CORS/rate-limit issues.
+        try {
+          const proxyRes = await fetch(`${LIVE_SOL_SPOT_PROXY_URL}?t=${ts}`, {
+            headers: { "cache-control": "no-cache" }
+          });
+          if (proxyRes.ok) {
+            const proxyPayload = await proxyRes.json();
+            const proxyPrice = Number(proxyPayload?.priceUsd);
+            if (Number.isFinite(proxyPrice) && proxyPrice > 0) return proxyPrice;
+          }
+        } catch {
+          // Fall through to direct fetch for local dev or proxy outages.
+        }
+
+        const url = `${LIVE_SOL_SPOT_URL}&t=${ts}`;
         const res = await fetch(url, {
           headers: { "cache-control": "no-cache" }
         });
