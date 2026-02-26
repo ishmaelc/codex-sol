@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-02-26T06:58:25.496Z",
+  "generatedAt": "2026-02-26T13:02:45.588Z",
   "regime": "MODERATE",
   "confidence": 0.99,
-  "score": 0.4402,
+  "score": 0.4407,
   "metrics": {
-    "vol7dPct": 107.17863420489144,
-    "vol30dPct": 107.32927111657861,
-    "vr": 0.9985964973942332,
+    "vol7dPct": 107.30983201511724,
+    "vol30dPct": 107.33052584985612,
+    "vr": 0.9998071952543321,
     "fundingAprPct": 3.504,
-    "volumeTvl24h": 2.1590244262022242,
-    "volumeTvl7dAvg": 1.5619481922124814,
-    "volumeTvl30dAvg": 2.1786528747446114,
-    "volumeTvlTrendRatio": 0.7169330233002712,
+    "volumeTvl24h": 2.20432936979636,
+    "volumeTvl7dAvg": 1.564488367957667,
+    "volumeTvl30dAvg": 2.1686420280360763,
+    "volumeTvlTrendRatio": 0.7214138376606437,
     "volumeTvlTrendLabel": "falling"
   },
   "reasons": [
@@ -22,7 +22,7 @@
   ],
   "hysteresis": {
     "previousRegime": "MODERATE",
-    "previousScore": 0.4381,
+    "previousScore": 0.4402,
     "applied": false
   },
   "dataSources": {
