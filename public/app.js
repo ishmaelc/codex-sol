@@ -1,34 +1,20 @@
 const walletInput = document.getElementById("walletInput");
 const loadBtn = document.getElementById("loadBtn");
-const autoRefresh = document.getElementById("autoRefresh");
-const betaEnabled = document.getElementById("betaEnabled");
 const operatorModeToggle = document.getElementById("operatorModeToggle");
 const statusEl = document.getElementById("status");
 const summaryCards = document.getElementById("summaryCards");
 const walletTokensWrap = document.getElementById("walletTokensWrap");
-const liqEndpointInfo = document.getElementById("liqEndpointInfo");
-const pairsList = document.getElementById("pairsList");
 const rewardsTableWrap = document.getElementById("rewardsTableWrap");
 const rawJson = document.getElementById("rawJson");
 const tabOverview = document.getElementById("tabOverview");
 const tabHedge = document.getElementById("tabHedge");
-const tabBeta = document.getElementById("tabBeta");
 const overviewView = document.getElementById("overviewView");
 const hedgeView = document.getElementById("hedgeView");
-const betaView = document.getElementById("betaView");
 const hedgeTableWrap = document.getElementById("hedgeTableWrap");
 const hedgeQuickWrap = document.getElementById("hedgeQuickWrap");
-const betaPair = document.getElementById("betaPair");
-const betaBenchmark = document.getElementById("betaBenchmark");
-const betaLookback = document.getElementById("betaLookback");
-const betaRunBtn = document.getElementById("betaRunBtn");
-const betaMetricsWrap = document.getElementById("betaMetricsWrap");
-const betaRankingWrap = document.getElementById("betaRankingWrap");
-const betaChartWrap = document.getElementById("betaChartWrap");
 const tabsWrap = document.querySelector(".tabs");
 const hedgeQuickCard = document.querySelector(".hedge-quick-card");
 const walletTokensCard = walletTokensWrap?.closest("section.card");
-const pairsCard = pairsList?.closest("section.card");
 const rewardsCard = rewardsTableWrap?.closest("section.card");
 const rawSummaryCard = rawJson?.closest("section.card");
 
@@ -37,9 +23,7 @@ const OPERATOR_MODE_KEY = "operatorModeEnabled";
 const DEFAULT_WALLET = "4ogWhtiSEAaXZCDD9BPAnRa2DY18pxvF9RbiUUdRJSvr";
 walletInput.value = DEFAULT_WALLET;
 
-let refreshTimer = null;
 let currentTab = "overview";
-let betaLastKey = "";
 let latestWallet = "";
 let latestSummary = null;
 let latestFullPositions = null;
@@ -305,19 +289,13 @@ function renderHedgeQuick(summary, fullPositions) {
 }
 
 function setTab(tab) {
-  if (tab === "beta" && !betaEnabled.checked) {
-    tab = "overview";
-  }
   currentTab = tab;
   const showOverview = tab === "overview";
   const showHedge = tab === "hedge";
-  const showBeta = tab === "beta";
   overviewView.classList.toggle("hidden", !showOverview);
   hedgeView.classList.toggle("hidden", !showHedge);
-  betaView.classList.toggle("hidden", !showBeta);
   tabOverview.classList.toggle("is-active", showOverview);
   tabHedge.classList.toggle("is-active", showHedge);
-  tabBeta.classList.toggle("is-active", showBeta);
 
   if (showHedge) {
     void ensureFullPositionsLoaded();
@@ -362,28 +340,17 @@ async function ensureFullPositionsLoaded() {
   }
 }
 
-function updateBetaLabEnabled() {
-  const enabled = Boolean(betaEnabled.checked);
-  tabBeta.classList.toggle("hidden", !enabled || operatorModeEnabled);
-  if ((!enabled || operatorModeEnabled) && currentTab === "beta") {
-    setTab("overview");
-  }
-}
-
 function applyOperatorMode() {
   setHidden(tabsWrap, operatorModeEnabled);
   setHidden(hedgeQuickCard, operatorModeEnabled);
   setHidden(walletTokensCard, operatorModeEnabled);
-  setHidden(pairsCard, operatorModeEnabled);
   setHidden(rewardsCard, operatorModeEnabled);
   setHidden(rawSummaryCard, operatorModeEnabled);
   setHidden(tabHedge, operatorModeEnabled);
-  updateBetaLabEnabled();
 
   if (operatorModeEnabled) {
     setTab("overview");
     setHidden(hedgeView, true);
-    setHidden(betaView, true);
   }
 }
 
@@ -449,70 +416,6 @@ function estimateRewardValueUsd(row, strategyMap, claimedPriceBySymbol) {
   const claimedPrice = claimedPriceBySymbol.get(row?.symbol);
   if (Number.isFinite(claimedPrice)) return amount * claimedPrice;
   return null;
-}
-
-function renderBetaChart(series, assetLabel, benchmarkLabel) {
-  if (!Array.isArray(series) || series.length < 2) {
-    betaChartWrap.innerHTML = `<div class="rewards-empty">Not enough chart points.</div>`;
-    return;
-  }
-  const width = 940;
-  const height = 280;
-  const pad = 24;
-  const minY = Math.min(...series.flatMap((p) => [Number(p.asset), Number(p.benchmark)]));
-  const maxY = Math.max(...series.flatMap((p) => [Number(p.asset), Number(p.benchmark)]));
-  const ySpan = Math.max(0.0001, maxY - minY);
-  const xScale = (idx) => pad + (idx / (series.length - 1)) * (width - pad * 2);
-  const yScale = (v) => height - pad - ((v - minY) / ySpan) * (height - pad * 2);
-  const lineA = series.map((p, i) => `${xScale(i)},${yScale(Number(p.asset))}`).join(" ");
-  const lineB = series.map((p, i) => `${xScale(i)},${yScale(Number(p.benchmark))}`).join(" ");
-
-  betaChartWrap.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="Beta normalized price chart">
-      <rect x="0" y="0" width="${width}" height="${height}" fill="#0f1420"></rect>
-      <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="#243147" />
-      <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="#243147" />
-      <polyline points="${lineA}" fill="none" stroke="#53e6b4" stroke-width="2.2" />
-      <polyline points="${lineB}" fill="none" stroke="#66b3ff" stroke-width="2.2" />
-      <text x="${pad + 8}" y="${pad + 14}" fill="#53e6b4" font-size="12">${assetLabel} (index=100)</text>
-      <text x="${pad + 8}" y="${pad + 30}" fill="#66b3ff" font-size="12">${benchmarkLabel} (index=100)</text>
-      <text x="${width - 110}" y="${pad + 14}" fill="#94a0b5" font-size="12">min ${minY.toFixed(1)}</text>
-      <text x="${width - 110}" y="${pad + 30}" fill="#94a0b5" font-size="12">max ${maxY.toFixed(1)}</text>
-    </svg>
-  `;
-}
-
-function renderBetaPriceTable(chartRows, assetLabel, benchmarkLabel) {
-  if (!Array.isArray(chartRows) || chartRows.length === 0) return "";
-  return `
-    <h4 class="table-subhead" style="margin-top:10px;">Chart Data Points</h4>
-    <table class="rewards-table">
-      <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>${assetLabel} Price</th>
-          <th>${benchmarkLabel} Price</th>
-          <th>${assetLabel} Index</th>
-          <th>${benchmarkLabel} Index</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${chartRows
-          .map(
-            (r) => `
-          <tr>
-            <td>${fmtDateTime(r.t)}</td>
-            <td>${Number.isFinite(Number(r.assetPrice)) ? Number(r.assetPrice).toFixed(6) : "n/a"}</td>
-            <td>${Number.isFinite(Number(r.benchmarkPrice)) ? Number(r.benchmarkPrice).toFixed(6) : "n/a"}</td>
-            <td>${Number.isFinite(Number(r.assetIndex)) ? Number(r.assetIndex).toFixed(2) : "n/a"}</td>
-            <td>${Number.isFinite(Number(r.benchmarkIndex)) ? Number(r.benchmarkIndex).toFixed(2) : "n/a"}</td>
-          </tr>
-        `
-          )
-          .join("")}
-      </tbody>
-    </table>
-  `;
 }
 
 function renderRollingBorrowApyChart(obligations) {
@@ -656,207 +559,6 @@ function renderRollingBorrowApyChart(obligations) {
       </tbody>
     </table>
   `;
-}
-
-function stddev(values) {
-  const nums = values.filter((v) => Number.isFinite(v));
-  if (nums.length < 2) return NaN;
-  const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
-  const varp = nums.reduce((a, b) => a + (b - mean) ** 2, 0) / (nums.length - 1);
-  return Math.sqrt(varp);
-}
-
-async function fetchBetaPoint(wallet, pair, benchmark, lookbackDays) {
-  const qs = new URLSearchParams({
-    wallet,
-    lpPair: pair,
-    benchmark,
-    lookbackDays: String(lookbackDays)
-  });
-  const res = await fetch(`/api/hedge-beta?${qs.toString()}`);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Beta request failed (${res.status})`);
-  }
-  return res.json();
-}
-
-async function fetchBetaPointWithRetry(wallet, pair, benchmark, lookbackDays, attempts = 3) {
-  let lastErr = null;
-  for (let i = 0; i < attempts; i += 1) {
-    try {
-      return await fetchBetaPoint(wallet, pair, benchmark, lookbackDays);
-    } catch (err) {
-      lastErr = err;
-      await new Promise((resolve) => setTimeout(resolve, 350 * (i + 1)));
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "unknown beta fetch error"));
-}
-
-async function loadBetaRanking(wallet, pair) {
-  const benchmarks = ["WBTC", "SOL", "ETH"];
-  betaRankingWrap.innerHTML = `<div class="rewards-empty">Ranking benchmarks...</div>`;
-
-  function statsFromReturns(allReturns, lookbackDays) {
-    if (!Array.isArray(allReturns) || allReturns.length === 0) return { beta: NaN, corr: NaN, r2: NaN };
-    const maxT = Math.max(...allReturns.map((r) => Number(r.t)));
-    const cutoff = maxT - lookbackDays * 24 * 60 * 60 * 1000;
-    const returns = allReturns.filter((r) => Number(r.t) >= cutoff);
-    const minPoints = lookbackDays <= 7 ? 4 : 10;
-    if (returns.length < minPoints) return { beta: NaN, corr: NaN, r2: NaN };
-    const n = returns.length;
-    const meanX = returns.reduce((acc, r) => acc + Number(r.benchmarkRet || 0), 0) / n;
-    const meanY = returns.reduce((acc, r) => acc + Number(r.assetRet || 0), 0) / n;
-    let cov = 0;
-    let varX = 0;
-    let varY = 0;
-    for (const r of returns) {
-      const dx = Number(r.benchmarkRet || 0) - meanX;
-      const dy = Number(r.assetRet || 0) - meanY;
-      cov += dx * dy;
-      varX += dx * dx;
-      varY += dy * dy;
-    }
-    cov /= Math.max(1, n - 1);
-    varX /= Math.max(1, n - 1);
-    varY /= Math.max(1, n - 1);
-    const beta = varX > 0 ? cov / varX : NaN;
-    const corr = varX > 0 && varY > 0 ? cov / Math.sqrt(varX * varY) : NaN;
-    return { beta, corr, r2: Number.isFinite(corr) ? corr * corr : NaN };
-  }
-
-  const rows = await Promise.all(
-    benchmarks.map(async (bm) => {
-      let point = null;
-      try {
-        point = await fetchBetaPointWithRetry(wallet, pair, bm, 90, 3);
-      } catch {
-        point = null;
-      }
-      const returns = point?.returns ?? [];
-      const s7 = statsFromReturns(returns, 7);
-      const s30 = statsFromReturns(returns, 30);
-      const s90 = statsFromReturns(returns, 90);
-      const b7 = Number(s7.beta ?? NaN);
-      const b30 = Number(s30.beta ?? NaN);
-      const b90 = Number(s90.beta ?? NaN);
-      const r230 = Number(s30.r2 ?? NaN);
-      const c30 = Number(s30.corr ?? NaN);
-      const betaStability = stddev([b7, b30, b90]);
-      const score =
-        Number.isFinite(r230) && Number.isFinite(c30) && Number.isFinite(betaStability)
-          ? (Math.max(0, c30) * Math.max(0, r230)) / (1 + betaStability)
-          : NaN;
-      return { benchmark: bm, b7, b30, b90, r230, c30, betaStability, score };
-    })
-  );
-
-  const sorted = rows.sort((a, b) => {
-    const as = Number.isFinite(a.score) ? a.score : -Infinity;
-    const bs = Number.isFinite(b.score) ? b.score : -Infinity;
-    return bs - as;
-  });
-  const best = sorted.find((r) => Number.isFinite(r.score));
-
-  betaRankingWrap.innerHTML = `
-    <h4 class="table-subhead">Benchmark Ranking (7d/30d/90d)</h4>
-    <table class="summary-table">
-      <thead>
-        <tr>
-          <th>Benchmark</th>
-          <th>Beta 7d</th>
-          <th>Beta 30d</th>
-          <th>Beta 90d</th>
-          <th>Beta Stability (stdev)</th>
-          <th>Corr 30d</th>
-          <th>R^2 30d</th>
-          <th>Score</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${sorted
-          .map((r) => {
-            const isBest = best && r.benchmark === best.benchmark;
-            return `
-              <tr${isBest ? ' class="total-row"' : ""}>
-                <td>${r.benchmark}${isBest ? " (best)" : ""}</td>
-                <td>${Number.isFinite(r.b7) ? r.b7.toFixed(3) : "n/a"}</td>
-                <td>${Number.isFinite(r.b30) ? r.b30.toFixed(3) : "n/a"}</td>
-                <td>${Number.isFinite(r.b90) ? r.b90.toFixed(3) : "n/a"}</td>
-                <td>${Number.isFinite(r.betaStability) ? r.betaStability.toFixed(3) : "n/a"}</td>
-                <td>${Number.isFinite(r.c30) ? r.c30.toFixed(3) : "n/a"}</td>
-                <td>${Number.isFinite(r.r230) ? r.r230.toFixed(3) : "n/a"}</td>
-                <td>${Number.isFinite(r.score) ? r.score.toFixed(4) : "n/a"}</td>
-              </tr>
-            `;
-          })
-          .join("")}
-      </tbody>
-    </table>
-    <p class="table-note">Higher score is better for hedge benchmark selection: strong positive correlation + higher R^2 + steadier beta across windows.</p>
-  `;
-}
-
-async function loadBeta() {
-  const wallet = walletInput.value.trim();
-  if (!wallet) return;
-  const cacheKey = `${wallet}|${betaPair.value}|${betaBenchmark.value}|${betaLookback.value}`;
-  if (cacheKey === betaLastKey && currentTab === "beta") return;
-
-  betaMetricsWrap.innerHTML = `<div class="rewards-empty">Calculating beta...</div>`;
-  betaRankingWrap.innerHTML = `<div class="rewards-empty">Ranking benchmarks...</div>`;
-  betaChartWrap.innerHTML = "";
-  try {
-    const qs = new URLSearchParams({
-      wallet,
-      lpPair: String(betaPair.value || "NX8-USDC"),
-      benchmark: String(betaBenchmark.value || "WBTC"),
-      lookbackDays: String(betaLookback.value || "30")
-    });
-    const res = await fetch(`/api/hedge-beta?${qs.toString()}`);
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `Beta request failed (${res.status})`);
-    }
-    const data = await res.json();
-    betaMetricsWrap.innerHTML = `
-      <table class="summary-table">
-        <thead>
-          <tr>
-            <th>Pair</th>
-            <th>Benchmark</th>
-            <th>Beta</th>
-            <th>R^2</th>
-            <th>Correlation</th>
-            <th>Alpha (per step)</th>
-            <th>Samples</th>
-            <th>Asset Source</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>${data.pair}</td>
-            <td>${data.benchmarkSymbol} (${data.benchmarkSource})</td>
-            <td>${Number.isFinite(Number(data.beta)) ? Number(data.beta).toFixed(3) : "n/a"}</td>
-            <td>${Number.isFinite(Number(data.r2)) ? Number(data.r2).toFixed(3) : "n/a"}</td>
-            <td>${Number.isFinite(Number(data.correlation)) ? Number(data.correlation).toFixed(3) : "n/a"}</td>
-            <td>${Number.isFinite(Number(data.alpha)) ? Number(data.alpha).toFixed(6) : "n/a"}</td>
-            <td>${data.sampleCount ?? "n/a"}</td>
-            <td>${data.baseAssetSource ?? "kamino:pnl-history"}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p class="table-note">Interpretation: beta near 1.0 means 1:1 sensitivity to benchmark; above 1.0 is more volatile than benchmark; below 1.0 is less sensitive.</p>
-    `;
-    renderBetaChart(data.series ?? [], data.baseAssetSymbol ?? "Asset", data.benchmarkSymbol ?? "Benchmark");
-    betaChartWrap.innerHTML += renderBetaPriceTable(data.chartRows ?? [], data.baseAssetSymbol ?? "Asset", data.benchmarkSymbol ?? "Benchmark");
-    await loadBetaRanking(wallet, String(betaPair.value || "NX8-USDC"));
-    betaLastKey = cacheKey;
-  } catch (err) {
-    betaMetricsWrap.innerHTML = `<div class="rewards-empty">${err instanceof Error ? err.message : String(err)}</div>`;
-    betaRankingWrap.innerHTML = "";
-  }
 }
 
 function renderHedge(summary, fullPositions) {
@@ -1337,24 +1039,6 @@ function render(summary, fullPositions) {
     syncLabel();
   }
 
-  liqEndpointInfo.textContent = `Endpoint valuation (Kamino): ${fmtUsd(summary?.kaminoLiquidity?.valueUsd)} | Orca whirlpools est: ${fmtUsd(
-    orcaWhirlpoolsValueUsd
-  )} | PnL (Kamino): ${fmtUsd(liqPnl)}`;
-
-  const pairs = summary?.kaminoLiquidity?.strategyPairs ?? [];
-  pairsList.innerHTML = pairs.length
-    ? pairs
-        .map(
-          (p) => `
-        <div class="pair-item">
-          <span class="pair-tag">${p.pair}</span>
-          <span class="pair-id">${p.strategy}</span>
-        </div>
-      `
-        )
-        .join("")
-    : `<div class="pair-item"><span>No liquidity pairs found.</span></div>`;
-
   const walletRows = [
     {
       name: "Solana",
@@ -1477,13 +1161,22 @@ function render(summary, fullPositions) {
     summary?.kaminoLiquidity?.rewards?.claimableByPositionWithOrca ?? summary?.kaminoLiquidity?.rewards?.claimableByPosition ?? [];
   const claimedRewards = summary?.kaminoLiquidity?.rewards?.claimed ?? [];
   const claimedRewardsTypedRows = summary?.kaminoLiquidity?.rewards?.claimedByPositionTypeSymbol ?? [];
-  const lendObligationRows = summary?.kaminoLend?.obligations ?? [];
-  function obligationCellForToken(symbol) {
+  function obligationTextForToken(symbol) {
     const obs = obligationByBorrowToken.get(String(symbol ?? "").toUpperCase()) ?? [];
-    if (!obs.length) return "-";
-    return obs
-      .map((ob) => `<a href="https://solscan.io/account/${ob}" target="_blank" rel="noopener noreferrer">${shortPk(ob)}</a>`)
-      .join(", ");
+    return obs.length ? obs.join(", ") : "-";
+  }
+  function tokenCellWithMeta(label, meta) {
+    const esc = (v) =>
+      String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    const parts = [];
+    if (meta?.mint) parts.push(`Mint: ${meta.mint}`);
+    if (meta?.obligation) parts.push(`Obligation: ${meta.obligation}`);
+    const title = parts.join("\n");
+    return title ? `<span title="${esc(title)}">${esc(String(label ?? "-"))}</span>` : esc(String(label ?? "-"));
   }
   const strategyMap = new Map(strategyValuations.map((s) => [s.strategy, s]));
   const claimedPriceBySymbol = new Map(
@@ -1502,9 +1195,18 @@ function render(summary, fullPositions) {
           return acc + (Number.isFinite(Number(v)) ? Number(v) : 0);
         }, 0);
         const claimedTotalUsd = claimedRewards.reduce((acc, row) => acc + (Number.isFinite(Number(row.amountUsd)) ? Number(row.amountUsd) : 0), 0);
+        const rewardsClaimsColgroup = `
+        <colgroup>
+          <col style="width: 120px" />
+          <col style="width: 150px" />
+          <col style="width: 110px" />
+          <col style="width: 180px" />
+          <col style="width: 140px" />
+        </colgroup>`;
         return `
       <h4 class="table-subhead">Claimable</h4>
-      <table class="rewards-table">
+      <table class="rewards-table rewards-claims-table">
+        ${rewardsClaimsColgroup}
         <thead>
           <tr>
             <th>Token</th>
@@ -1512,8 +1214,6 @@ function render(summary, fullPositions) {
             <th>Value</th>
             <th>Position</th>
             <th>Position Type</th>
-            <th>Mint</th>
-            <th>Obligation</th>
           </tr>
         </thead>
         <tbody>
@@ -1540,17 +1240,36 @@ function render(summary, fullPositions) {
                         .join("<br/>")
                     : "n/a")
                 : fmtTokenAmount(row.amountUi);
+              if (isOrcaPending && Array.isArray(row?.breakdown) && row.breakdown.length) {
+                return row.breakdown
+                  .map((b) => {
+                    const tokenMint = String(b?.token || "");
+                    const tokenSymbol = orcaTokenLabel(tokenMint);
+                    const tokenAmount = Number.isFinite(Number(b?.amount)) ? fmtTokenAmount(b.amount) : "n/a";
+                    const tokenValueUsd = Number.isFinite(Number(b?.amountUsd)) ? fmtUsd(b.amountUsd) : "n/a";
+                    return `
+                <tr>
+                  <td>${tokenCellWithMeta(tokenSymbol, { mint: tokenMint, obligation: "-" })}</td>
+                  <td>${tokenAmount}</td>
+                  <td>${tokenValueUsd}</td>
+                  <td>${row.position}</td>
+                  <td>${row.positionType}</td>
+                </tr>
+              `;
+                  })
+                  .join("");
+              }
               return `
                 <tr>
-                  <td>${isOrcaPending ? "Orca Pending Yield" : row.symbol}</td>
+                  <td>${tokenCellWithMeta(isOrcaPending ? "Orca Pending Yield" : row.symbol, {
+                    mint: row.mint ?? "-",
+                    obligation:
+                      row.positionType === "Lend" || row.positionType === "Multiply" ? obligationTextForToken(row.symbol) : "-"
+                  })}</td>
                   <td>${amountCell}</td>
                   <td>${fmtUsd(valueUsd)}</td>
                   <td>${row.position}</td>
                   <td>${row.positionType}</td>
-                  <td>${row.mint}</td>
-                  <td>${
-                    row.positionType === "Lend" || row.positionType === "Multiply" ? obligationCellForToken(row.symbol) : "-"
-                  }</td>
                 </tr>
               `;
             })
@@ -1561,13 +1280,12 @@ function render(summary, fullPositions) {
             <td>${fmtUsd(totalRewardsUsd)}</td>
             <td></td>
             <td></td>
-            <td></td>
-            <td></td>
           </tr>
         </tbody>
       </table>
       <h4 class="table-subhead" style="margin-top:14px;">Claimed</h4>
-      <table class="rewards-table">
+      <table class="rewards-table rewards-claims-table">
+        ${rewardsClaimsColgroup}
         <thead>
           <tr>
             <th>Token</th>
@@ -1575,8 +1293,6 @@ function render(summary, fullPositions) {
             <th>Value</th>
             <th>Position</th>
             <th>Position Type</th>
-            <th>Mint</th>
-            <th>Obligation</th>
           </tr>
         </thead>
         <tbody>
@@ -1586,20 +1302,24 @@ function render(summary, fullPositions) {
                   .map(
                     (row) => `
                 <tr>
-                  <td>${row.symbol}</td>
+                  <td>${tokenCellWithMeta(row.symbol, {
+                    mint: row.mint ?? "-",
+                    obligation:
+                      row.positionType === "Lend" || row.positionType === "Multiply" || row.positionType === "Lend/Multiply"
+                        ? obligationTextForToken(row.symbol)
+                        : "-"
+                  })}</td>
                   <td>${fmtTokenAmount(row.amountUi)}</td>
                   <td>${fmtUsd(row.amountUsd)}</td>
                   <td>${row.position ?? "-"}</td>
                   <td>${row.positionType ?? "-"}</td>
-                  <td>${row.mint ?? "-"}</td>
-                  <td>${row.positionType === "Lend" || row.positionType === "Multiply" || row.positionType === "Lend/Multiply" ? obligationCellForToken(row.symbol) : "-"}</td>
                 </tr>
               `
                   )
                   .join("")
               : `
                 <tr>
-                  <td colspan="7" class="rewards-empty">No claimed rewards found.</td>
+                  <td colspan="5" class="rewards-empty">No claimed rewards found.</td>
                 </tr>
               `
           }
@@ -1607,8 +1327,6 @@ function render(summary, fullPositions) {
             <td></td>
             <td></td>
             <td>${fmtUsd(claimedTotalUsd)}</td>
-            <td></td>
-            <td></td>
             <td></td>
             <td></td>
           </tr>
@@ -1670,45 +1388,20 @@ async function loadSummary() {
   }
 }
 
-function updateAutoRefresh() {
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
-
-  if (autoRefresh.checked) {
-    refreshTimer = setInterval(loadSummary, 30_000);
-  }
-}
-
 loadBtn.addEventListener("click", loadSummary);
-autoRefresh.addEventListener("change", updateAutoRefresh);
 walletInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") loadSummary();
 });
 tabOverview.addEventListener("click", () => setTab("overview"));
 tabHedge.addEventListener("click", () => setTab("hedge"));
-tabBeta.addEventListener("click", async () => {
-  setTab("beta");
-  betaLastKey = "";
-  await loadBeta();
-});
-betaRunBtn.addEventListener("click", async () => {
-  betaLastKey = "";
-  await loadBeta();
-});
-betaEnabled.addEventListener("change", updateBetaLabEnabled);
 operatorModeToggle?.addEventListener("change", () => {
   operatorModeEnabled = Boolean(operatorModeToggle.checked);
   persistOperatorModeState(operatorModeEnabled);
   applyOperatorMode();
   if (latestSummary) render(latestSummary, latestFullPositions);
 });
-
-betaEnabled.checked = false;
 operatorModeEnabled = loadOperatorModeState();
 if (operatorModeToggle) operatorModeToggle.checked = operatorModeEnabled;
-updateBetaLabEnabled();
 applyOperatorMode();
 setTab(currentTab);
 loadSummary();

@@ -4,18 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Orca Regime + Pool Rankings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --bg: #081018;
-        --panel: rgba(14, 23, 35, 0.9);
-        --panel-2: rgba(10, 18, 28, 0.9);
-        --text: #e9f2ff;
-        --muted: #9bb1cb;
-        --line: rgba(155, 177, 203, 0.18);
-        --accent: #29d3c4;
+        --bg: #070b13;
+        --bg-2: #0a1222;
+        --panel: rgba(17, 26, 43, 0.96);
+        --panel-2: rgba(13, 20, 34, 0.96);
+        --text: #eef4ff;
+        --muted: #94a3be;
+        --line: rgba(134, 169, 230, 0.18);
+        --line-strong: rgba(134, 169, 230, 0.3);
+        --accent: #66e0d0;
+        --accent-2: #5bb7ff;
+        --accent-3: #7ef5ff;
         --warn: #ffb13b;
         --danger: #ff6d6d;
         --ok: #70f2a8;
+        --shadow: 0 18px 50px rgba(2, 8, 22, 0.45);
       }
 
       * {
@@ -24,18 +35,19 @@
 
       body {
         margin: 0;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: "Space Grotesk", system-ui, sans-serif;
         color: var(--text);
         background:
-          radial-gradient(circle at 10% 0%, rgba(41, 211, 196, 0.16), transparent 40%),
-          radial-gradient(circle at 90% 10%, rgba(112, 242, 168, 0.14), transparent 35%),
-          linear-gradient(180deg, #061018 0%, #05090f 100%);
+          radial-gradient(circle at 10% 12%, rgba(72, 111, 191, 0.34) 0%, transparent 38%),
+          radial-gradient(circle at 88% 14%, rgba(36, 144, 124, 0.28) 0%, transparent 42%),
+          radial-gradient(circle at 55% 120%, rgba(36, 92, 160, 0.18) 0%, transparent 52%),
+          linear-gradient(180deg, var(--bg-2), var(--bg));
       }
 
       .wrap {
-        max-width: 1280px;
-        margin: 0 auto;
-        padding: 24px;
+        width: min(1280px, 94vw);
+        margin: 26px auto 72px;
+        padding: 0;
       }
 
       .header {
@@ -56,10 +68,11 @@
 
       .header-pill {
         border: 1px solid var(--line);
-        border-radius: 12px;
+        border-radius: 14px;
         padding: 8px 10px;
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(15, 23, 40, 0.75);
         min-width: 220px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
       }
 
       .header-pill .title {
@@ -71,16 +84,19 @@
       .header-pill .value {
         font-weight: 700;
         font-size: 0.95rem;
+        font-family: "IBM Plex Mono", monospace;
       }
 
       .btn {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid var(--line);
-        color: var(--text);
-        border-radius: 10px;
+        border: 1px solid rgba(146, 255, 248, 0.28);
+        border-radius: 12px;
         padding: 8px 12px;
+        background: linear-gradient(135deg, var(--accent) 0%, #42d6f7 60%, #66b3ff 100%);
+        color: #06111b;
         cursor: pointer;
         font-size: 0.85rem;
+        font-weight: 700;
+        box-shadow: 0 10px 24px rgba(64, 190, 217, 0.22);
       }
 
       .btn[disabled] {
@@ -90,14 +106,14 @@
 
 
       .nav-link {
-        color: var(--text);
+        color: var(--accent-3);
         text-decoration: none;
       }
 
       h1 {
         margin: 0;
-        font-size: 1.5rem;
-        letter-spacing: 0.02em;
+        font-size: 1.6rem;
+        letter-spacing: -0.02em;
       }
 
       .muted {
@@ -107,8 +123,9 @@
       .card {
         background: linear-gradient(180deg, var(--panel), var(--panel-2));
         border: 1px solid var(--line);
-        border-radius: 16px;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+        border-radius: 20px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(8px);
       }
 
       .regime {
@@ -134,7 +151,7 @@
         font-weight: 700;
         letter-spacing: 0.04em;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(15, 23, 40, 0.75);
       }
 
       .pill.low { color: var(--ok); }
@@ -151,7 +168,7 @@
         border: 1px solid var(--line);
         border-radius: 12px;
         padding: 10px 12px;
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(15, 23, 40, 0.75);
       }
 
       .metric .label {
@@ -205,7 +222,7 @@
         border: 1px solid var(--line);
         border-radius: 12px;
         padding: 10px;
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(15, 23, 40, 0.75);
       }
 
       .mini-card h3 {

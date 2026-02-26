@@ -26,8 +26,7 @@
 
     <main class="container">
       <header class="hero hero-card card">
-        <h1>Wallet Positions</h1>
-        <p>Jupiter Perps + Kamino Lend + Kamino Liquidity</p>
+        <h1>Portfolio Command Center</h1>
         <a class="hero-link" href="/orca.html">Open Orca Regime + Pool Rankings</a>
       </header>
 
@@ -42,8 +41,6 @@
         </div>
         <div class="meta-row">
           <div class="toggle-row">
-            <label class="inline-toggle"><input type="checkbox" id="autoRefresh" /> Auto-refresh (30s)</label>
-            <label class="inline-toggle"><input type="checkbox" id="betaEnabled" /> Enable Beta Lab (experimental)</label>
             <label class="inline-toggle"><input type="checkbox" id="operatorModeToggle" /> Operator Mode</label>
           </div>
           <span class="controls-hint">Data stays live; static UI is cached for app-like loading.</span>
@@ -53,7 +50,6 @@
       <section class="tabs card">
         <button id="tabOverview" class="tab-btn is-active" type="button">Overview</button>
         <button id="tabHedge" class="tab-btn" type="button">Hedge Drift</button>
-        <button id="tabBeta" class="tab-btn" type="button">Beta Lab</button>
       </section>
 
       <div id="overviewView">
@@ -68,19 +64,13 @@
         <section class="grid-cards" id="summaryCards"></section>
 
         <section class="card">
-          <h2>Wallet Tokens</h2>
-          <div id="walletTokensWrap" class="rewards-wrap"></div>
-        </section>
-
-        <section class="card">
-          <h2>Kamino Liquidity Pairs</h2>
-          <div id="liqEndpointInfo" class="liq-endpoint-info"></div>
-          <div id="pairsList" class="pairs-list"></div>
-        </section>
-
-        <section class="card">
           <h2>Rewards</h2>
           <div id="rewardsTableWrap" class="rewards-wrap"></div>
+        </section>
+
+        <section class="card">
+          <h2>Wallet Tokens</h2>
+          <div id="walletTokensWrap" class="rewards-wrap"></div>
         </section>
 
         <section class="card">
@@ -97,33 +87,6 @@
         </section>
       </div>
 
-      <div id="betaView" class="hidden">
-        <section class="card">
-          <h2>Beta Lab</h2>
-          <div class="beta-controls">
-            <label>Pair
-              <select id="betaPair">
-                <option value="NX8-USDC">NX8-USDC</option>
-                <option value="SOL-USDG">SOL-USDG</option>
-              </select>
-            </label>
-            <label>Benchmark
-              <select id="betaBenchmark">
-                <option value="WBTC">WBTC</option>
-                <option value="SOL">SOL</option>
-                <option value="ETH">ETH</option>
-              </select>
-            </label>
-            <label>Lookback (days)
-              <input id="betaLookback" type="number" min="7" max="180" value="30" />
-            </label>
-            <button id="betaRunBtn" type="button">Recalculate Beta</button>
-          </div>
-          <div id="betaMetricsWrap" class="rewards-wrap"></div>
-          <div id="betaRankingWrap" class="rewards-wrap"></div>
-          <div id="betaChartWrap" class="beta-chart"></div>
-        </section>
-      </div>
     </main>
 
     <script type="module" src="/app.js"></script>

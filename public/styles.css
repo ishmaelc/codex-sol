@@ -288,40 +288,6 @@ button:hover {
   border-color: rgba(102, 224, 208, 0.45);
 }
 
-.beta-controls {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
-  gap: 10px;
-  align-items: end;
-  margin-bottom: 14px;
-}
-
-.beta-controls label {
-  display: grid;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.beta-controls select,
-.beta-controls input {
-  width: 100%;
-  background: rgba(10, 15, 26, 0.95);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
-}
-
-.beta-chart {
-  margin-top: 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(10, 15, 26, 0.95);
-  padding: 10px;
-  overflow-x: auto;
-}
-
 .stat {
   background:
     radial-gradient(circle at 10% 0%, rgba(102, 224, 208, 0.05), transparent 45%),
@@ -355,38 +321,6 @@ button:hover {
 
 .pnl-warn {
   color: #ffcb6b;
-}
-
-.pairs-list {
-  display: grid;
-  gap: 8px;
-}
-
-.liq-endpoint-info {
-  margin: 0 0 10px;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.pair-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 13px;
-  border-radius: 12px;
-  background: rgba(10, 15, 26, 0.95);
-  border: 1px solid var(--line);
-}
-
-.pair-tag {
-  font-weight: 700;
-}
-
-.pair-id {
-  font-family: "IBM Plex Mono", monospace;
-  color: var(--muted);
-  font-size: 0.8rem;
 }
 
 .raw-json {
@@ -464,6 +398,20 @@ button:hover {
   font-size: 0.9rem;
 }
 
+.rewards-claims-table {
+  table-layout: fixed;
+}
+
+.rewards-claims-table td:first-child,
+.rewards-claims-table th:first-child {
+  white-space: nowrap;
+}
+
+.rewards-claims-table td:last-child,
+.rewards-claims-table th:last-child {
+  text-align: left;
+}
+
 .rewards-table th,
 .rewards-table td {
   padding: 10px 8px;
@@ -481,6 +429,11 @@ button:hover {
 .rewards-table td:last-child,
 .rewards-table th:last-child {
   text-align: right;
+}
+
+.rewards-claims-table td:last-child,
+.rewards-claims-table th:last-child {
+  text-align: left;
 }
 
 .rewards-empty {
@@ -638,17 +591,8 @@ button:hover {
     flex: 1 1 120px;
   }
 
-  .beta-controls {
-    grid-template-columns: 1fr;
-  }
-
   .grid-cards {
     grid-template-columns: 1fr;
-  }
-
-  .pair-item {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   .summary-table {

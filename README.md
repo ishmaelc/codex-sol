@@ -39,13 +39,6 @@ Open:
 The dashboard calls:
 - `/api/positions?wallet=<WALLET>&mode=summary`
 - `/api/positions?wallet=<WALLET>&mode=full`
-- `/api/hedge-beta?wallet=<WALLET>&lpPair=NX8-USDC&benchmark=WBTC&lookbackDays=30`
-
-Beta Lab tab:
-- Uses Kamino strategy PnL history for LP token price time-series.
-- Uses benchmark USD history (CoinGecko primary, Coinbase candles fallback on rate limits) for WBTC/SOL/ETH comparisons.
-- Computes beta as `cov(asset_returns, benchmark_returns) / var(benchmark_returns)`.
-- Includes side-by-side benchmark ranking across 7d/30d/90d windows (beta stability + 30d corr/R² score).
 
 ## Config
 
