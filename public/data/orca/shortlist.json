@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T22:56:59.534Z",
+  "generatedAt": "2026-02-26T01:12:47.243Z",
   "regime": "MODERATE",
   "maxPools": 1,
   "selected": [
@@ -9,12 +9,12 @@
       "pool": "SOL/USDC",
       "type": "SOL-STABLE",
       "rank": 1,
-      "score": 93.22,
-      "tvlUsd": 27768328.17,
-      "volume24hUsd": 191972442.71,
-      "feeAprPct": 100.94,
-      "depthUsd1Pct": 3373851.87,
-      "depthUsd2Pct": 6410318.56,
+      "score": 91.8,
+      "tvlUsd": 27614150.08,
+      "volume24hUsd": 202566441.18,
+      "feeAprPct": 107.1,
+      "depthUsd1Pct": 3355119.23,
+      "depthUsd2Pct": 6374726.55,
       "depthTvl1PctRatio": 0.1215,
       "reasons": [
         {

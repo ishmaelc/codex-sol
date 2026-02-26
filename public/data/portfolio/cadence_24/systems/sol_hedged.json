@@ -1,55 +1,54 @@
 {
   "id": "sol_hedged",
   "label": "SOL Hedged Yield System",
-  "netDelta": 2.5764210526315807,
-  "totalLong": 51.52842105263158,
-  "totalShort": 48.952,
-  "leverage": null,
-  "liqBufferPct": null,
-  "score": 0.7253117380952381,
+  "netDelta": 44.570596848544106,
+  "totalLong": 51.427789473684214,
+  "totalShort": 6.85719262514011,
+  "leverage": 2.379653523185782,
+  "liqBufferPct": 34.83253425717418,
+  "score": 0.6187493379752228,
   "breakdown": {
-    "delta": 0.8333333333333333,
-    "hedge": 0.3039085714285714,
+    "delta": 0,
+    "hedge": 0.9070811265840759,
     "range": 1,
-    "stability": 0.9498166666666666,
-    "weighted": 0.7253117380952381,
+    "stability": 0.9774999999999999,
+    "weighted": 0.6187493379752228,
     "status": "yellow"
   },
   "riskFlags": [
-    "MISSING_DATA",
     "RANGE_EDGE_WARN",
-    "LOW_LIQ_BUFFER"
+    "DELTA_DRIFT"
   ],
   "exposures": [
     {
       "source": "orca_plans",
       "asset": "SOL",
       "direction": "long",
-      "quantityBase": 51.52842105263158,
-      "notionalUsd": 4570.547541613726,
-      "confidence": "low",
+      "quantityBase": 51.427789473684214,
+      "notionalUsd": 4572.548014192467,
+      "confidence": "medium",
       "notes": "Long SOL exposure inferred from Orca/Kamino deployment mix."
     },
     {
       "source": "api_positions",
       "asset": "SOL",
       "direction": "short",
-      "quantityBase": 48.952,
-      "notionalUsd": 4342.02016453304,
-      "confidence": "low",
-      "notes": "Fallback to hedge planner sizing."
+      "quantityBase": 6.85719262514011,
+      "notionalUsd": 609.6867635554125,
+      "confidence": "medium",
+      "notes": "Derived from /api/positions perp payload."
     }
   ],
   "hedge": {
     "source": "jupiter_perps",
     "asset": "SOL",
     "side": "short",
-    "quantityBase": 48.952,
-    "notionalUsd": 4342.02016453304,
-    "leverage": null,
-    "liqPrice": null,
-    "markPrice": 88.69954577,
-    "liqBufferPct": null
+    "quantityBase": 6.85719262514011,
+    "notionalUsd": 609.6867635554125,
+    "leverage": 2.379653523185782,
+    "liqPrice": 120.009266,
+    "markPrice": 89.00616358,
+    "liqBufferPct": 34.83253425717418
   },
-  "updatedAt": "2026-02-25T22:35:22.187Z"
+  "updatedAt": "2026-02-26T01:12:53.922Z"
 }
