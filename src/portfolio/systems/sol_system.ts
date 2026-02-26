@@ -26,6 +26,16 @@ function asNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function asNumLoose(v: unknown): number | null {
+  const direct = asNum(v);
+  if (direct != null) return direct;
+  if (typeof v !== "string") return null;
+  const m = v.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function fetchPerpExposureFromApi(): Promise<{
   shortSolQty: number | null;
   shortSolNotionalUsd: number | null;
@@ -35,6 +45,7 @@ async function fetchPerpExposureFromApi(): Promise<{
 } | null> {
   const wallet = process.env.PORTFOLIO_WALLET;
   if (!wallet) return null;
+  const solMint = "So11111111111111111111111111111111111111112";
   const baseUrl = process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:3000";
   const url = `${baseUrl.replace(/\/$/, "")}/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`;
   try {
@@ -51,8 +62,8 @@ async function fetchPerpExposureFromApi(): Promise<{
     const positions = (isolated.positions as Array<Record<string, unknown>> | undefined) ?? [];
     const solPositions = positions.filter((p) => {
       const symbol = String(p?.symbol ?? p?.asset ?? p?.name ?? "").toUpperCase();
-      const address = String(p?.address ?? "").toUpperCase();
-      return symbol.includes("SOL") || address.includes("SOL");
+      const address = String(p?.address ?? "");
+      return symbol.includes("SOL") || address === solMint;
     });
     if (!solPositions.length) return { shortSolQty: 0, shortSolNotionalUsd: 0, leverage: null, liqPrice: null, markPrice: null };
 
@@ -70,9 +81,9 @@ async function fetchPerpExposureFromApi(): Promise<{
         shortSolQty += qty;
         shortSolNotionalUsd += notional;
       }
-      leverage = leverage ?? asNum(p?.leverage);
-      liqPrice = liqPrice ?? asNum(p?.liquidationPrice);
-      markPrice = markPrice ?? asNum(p?.markPrice) ?? asNum(p?.entryPrice);
+      leverage = leverage ?? asNumLoose(p?.leverage);
+      liqPrice = liqPrice ?? asNumLoose(p?.liquidationPrice);
+      markPrice = markPrice ?? asNumLoose(p?.markPrice) ?? asNumLoose(p?.entryPrice);
     }
 
     return { shortSolQty, shortSolNotionalUsd, leverage, liqPrice, markPrice };
