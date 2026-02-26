@@ -2,6 +2,7 @@ const walletInput = document.getElementById("walletInput");
 const loadBtn = document.getElementById("loadBtn");
 const autoRefresh = document.getElementById("autoRefresh");
 const betaEnabled = document.getElementById("betaEnabled");
+const operatorModeToggle = document.getElementById("operatorModeToggle");
 const statusEl = document.getElementById("status");
 const summaryCards = document.getElementById("summaryCards");
 const walletTokensWrap = document.getElementById("walletTokensWrap");
@@ -24,6 +25,14 @@ const betaRunBtn = document.getElementById("betaRunBtn");
 const betaMetricsWrap = document.getElementById("betaMetricsWrap");
 const betaRankingWrap = document.getElementById("betaRankingWrap");
 const betaChartWrap = document.getElementById("betaChartWrap");
+const tabsWrap = document.querySelector(".tabs");
+const hedgeQuickCard = document.querySelector(".hedge-quick-card");
+const walletTokensCard = walletTokensWrap?.closest("section.card");
+const pairsCard = pairsList?.closest("section.card");
+const rewardsCard = rewardsTableWrap?.closest("section.card");
+const rawSummaryCard = rawJson?.closest("section.card");
+
+const OPERATOR_MODE_KEY = "operatorModeEnabled";
 
 const DEFAULT_WALLET = "4ogWhtiSEAaXZCDD9BPAnRa2DY18pxvF9RbiUUdRJSvr";
 walletInput.value = DEFAULT_WALLET;
@@ -36,6 +45,7 @@ let latestSummary = null;
 let latestFullPositions = null;
 let latestPortfolioSystems = null;
 let fullPositionsLoadPromise = null;
+let operatorModeEnabled = false;
 
 const HEDGE_LINKS = [
   { strategyLabel: "NX8-USDC vs WBTC Short", lpPair: "NX8-USDC", perpSymbol: "WBTC" },
@@ -45,6 +55,25 @@ const BETA_OVERRIDES = {
   "NX8-USDC vs WBTC Short": 1.0,
   "SOL-USDG vs SOL Short": 1.0
 };
+
+function loadOperatorModeState() {
+  try {
+    return localStorage.getItem(OPERATOR_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistOperatorModeState(enabled) {
+  try {
+    localStorage.setItem(OPERATOR_MODE_KEY, enabled ? "1" : "0");
+  } catch {}
+}
+
+function setHidden(el, hidden) {
+  if (!el) return;
+  el.classList.toggle("hidden", Boolean(hidden));
+}
 
 function fmtUsd(value) {
   if (value == null || Number.isNaN(Number(value))) return "n/a";
@@ -335,10 +364,61 @@ async function ensureFullPositionsLoaded() {
 
 function updateBetaLabEnabled() {
   const enabled = Boolean(betaEnabled.checked);
-  tabBeta.classList.toggle("hidden", !enabled);
-  if (!enabled && currentTab === "beta") {
+  tabBeta.classList.toggle("hidden", !enabled || operatorModeEnabled);
+  if ((!enabled || operatorModeEnabled) && currentTab === "beta") {
     setTab("overview");
   }
+}
+
+function applyOperatorMode() {
+  setHidden(tabsWrap, operatorModeEnabled);
+  setHidden(hedgeQuickCard, operatorModeEnabled);
+  setHidden(walletTokensCard, operatorModeEnabled);
+  setHidden(pairsCard, operatorModeEnabled);
+  setHidden(rewardsCard, operatorModeEnabled);
+  setHidden(rawSummaryCard, operatorModeEnabled);
+  setHidden(tabHedge, operatorModeEnabled);
+  updateBetaLabEnabled();
+
+  if (operatorModeEnabled) {
+    setTab("overview");
+    setHidden(hedgeView, true);
+    setHidden(betaView, true);
+  }
+}
+
+function renderSolSystemCard(system) {
+  if (!system) {
+    return `<section class="card"><h2>SOL System Console</h2><div class="rewards-empty">SOL system snapshot unavailable.</div></section>`;
+  }
+
+  const health = Number(system.healthScore);
+  const scoreClass = Number.isFinite(health) ? (health >= 80 ? "pnl-pos" : health >= 60 ? "pnl-warn" : "pnl-neg") : "";
+  const hedgePct = Number(system.hedgeCoveragePct);
+  const liqPct = Number(system.liqBufferPct);
+  const rangePct = Number(system.rangeBufferPct);
+
+  return `
+    <section class="card">
+      <div class="section-head">
+        <h2>SOL System Console</h2>
+        <span class="section-subtle">Aggregated hedge health</span>
+      </div>
+      <div class="stat">
+        <h3>Health Score</h3>
+        <p class="${scoreClass}" style="font-size:1.8rem;">${Number.isFinite(health) ? health.toFixed(0) : "n/a"}</p>
+      </div>
+      <table class="summary-table" style="margin-top:12px;">
+        <tbody>
+          <tr><td>Net SOL</td><td>${fmtTokenAmount(system.netSol)}</td></tr>
+          <tr><td>Hedge %</td><td>${Number.isFinite(hedgePct) ? `${(hedgePct * 100).toFixed(2)}%` : "n/a"}</td></tr>
+          <tr><td>Liq buffer %</td><td>${Number.isFinite(liqPct) ? `${(liqPct * 100).toFixed(2)}%` : "n/a"}</td></tr>
+          <tr><td>Range buffer %</td><td>${Number.isFinite(rangePct) ? `${(rangePct * 100).toFixed(2)}%` : "n/a"}</td></tr>
+          <tr><td>Recommended Action</td><td>${system.action ?? "No action"}</td></tr>
+        </tbody>
+      </table>
+    </section>
+  `;
 }
 
 function inferPerpSymbol(mint) {
@@ -1096,7 +1176,14 @@ function render(summary, fullPositions) {
         .join("")
     : `<tr><td colspan="13" class="rewards-empty">No farming/liquidity strategy rows found.</td></tr>`;
 
+  if (operatorModeEnabled) {
+    summaryCards.innerHTML = `${renderSolSystemCard(summary?.solSystem)}`;
+    applyOperatorMode();
+    return;
+  }
+
   summaryCards.innerHTML = `
+    ${renderSolSystemCard(summary?.solSystem)}
     <table class="summary-table">
       <thead>
         <tr>
@@ -1611,8 +1698,17 @@ betaRunBtn.addEventListener("click", async () => {
   await loadBeta();
 });
 betaEnabled.addEventListener("change", updateBetaLabEnabled);
+operatorModeToggle?.addEventListener("change", () => {
+  operatorModeEnabled = Boolean(operatorModeToggle.checked);
+  persistOperatorModeState(operatorModeEnabled);
+  applyOperatorMode();
+  if (latestSummary) render(latestSummary, latestFullPositions);
+});
 
 betaEnabled.checked = false;
+operatorModeEnabled = loadOperatorModeState();
+if (operatorModeToggle) operatorModeToggle.checked = operatorModeEnabled;
 updateBetaLabEnabled();
+applyOperatorMode();
 setTab(currentTab);
 loadSummary();
