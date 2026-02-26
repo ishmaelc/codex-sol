@@ -482,7 +482,12 @@
         "Es9vMFrzaCER7h3Yb9g4Z1cdq9VHtV6nRvWmvMRGsiE"
       ]);
 
+      function isMissingValue(v) {
+        return v == null || v === "";
+      }
+
       function fmtUsd(v) {
+        if (isMissingValue(v)) return "n/a";
         const n = Number(v);
         if (!Number.isFinite(n)) return "n/a";
         return new Intl.NumberFormat("en-US", {
@@ -493,12 +498,14 @@
       }
 
       function fmtPct(v, digits = 2) {
+        if (isMissingValue(v)) return "n/a";
         const n = Number(v);
         if (!Number.isFinite(n)) return "n/a";
         return `${n.toFixed(digits)}%`;
       }
 
       function fmtNum(v, digits = 2) {
+        if (isMissingValue(v)) return "n/a";
         const n = Number(v);
         if (!Number.isFinite(n)) return "n/a";
         return n.toFixed(digits);
@@ -628,7 +635,7 @@
                           ${(() => {
                             const flags = Array.isArray(system.riskFlags) ? [...system.riskFlags] : [];
                             if (mode.monitorCadenceHours === 48 && !flags.includes("LOW_MONITORING")) flags.push("LOW_MONITORING");
-                            if (Number(system.liqBufferPct) <= mode.minLiqBufferPct * 100) flags.push("LOW_LIQ_BUFFER");
+                            if (!isMissingValue(system.liqBufferPct) && Number(system.liqBufferPct) <= mode.minLiqBufferPct * 100) flags.push("LOW_LIQ_BUFFER");
                             return flags.length ? Array.from(new Set(flags)) : ["NONE"];
                           })().map((f) => `<span class="chip">${escapeHtml(f)}</span>`).join("")}
                         </div>
