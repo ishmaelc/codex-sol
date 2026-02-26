@@ -33,7 +33,32 @@ function asNumLoose(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function extractNx8FromStrategyValuations(
+  strategyValuations: Array<Record<string, unknown>>,
+  nx8Mint: string
+): { nx8KaminoQty: number; nx8PriceUsd: number | null } {
+  let nx8KaminoQty = 0;
+  let nx8PriceUsd: number | null = null;
+  for (const s of strategyValuations) {
+    const tokenASymbol = String(s?.tokenASymbol ?? "").toUpperCase();
+    const tokenBSymbol = String(s?.tokenBSymbol ?? "").toUpperCase();
+    const tokenAMint = String(s?.tokenAMint ?? "");
+    const tokenBMint = String(s?.tokenBMint ?? "");
+    if (tokenASymbol === "NX8" || tokenAMint === nx8Mint) {
+      nx8KaminoQty += asNumLoose(s?.tokenAAmountUiFarmsStaked) ?? asNumLoose(s?.tokenAAmountUi) ?? 0;
+      nx8PriceUsd = nx8PriceUsd ?? asNumLoose(s?.tokenAPriceUsd);
+    }
+    if (tokenBSymbol === "NX8" || tokenBMint === nx8Mint) {
+      nx8KaminoQty += asNumLoose(s?.tokenBAmountUiFarmsStaked) ?? asNumLoose(s?.tokenBAmountUi) ?? 0;
+      nx8PriceUsd = nx8PriceUsd ?? asNumLoose(s?.tokenBPriceUsd);
+    }
+  }
+  return { nx8KaminoQty, nx8PriceUsd };
+}
+
 async function fetchBtcPerpExposureFromApi(): Promise<{
+  nx8LongQty: number | null;
+  nx8PriceUsd: number | null;
   shortBtcQty: number | null;
   shortBtcNotionalUsd: number | null;
   leverage: number | null;
@@ -46,10 +71,45 @@ async function fetchBtcPerpExposureFromApi(): Promise<{
   const baseUrl = process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:3000";
   const url = `${baseUrl.replace(/\/$/, "")}/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`;
   const wbtcMint = "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh";
+  const nx8Mint = "NX8DuAWprqWAYDvpkkuhKnPfGRXQQhgiw85pCkgvFYk";
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
     const json = (await res.json()) as Record<string, unknown>;
+    const spot = (json.spot as Record<string, unknown> | undefined) ?? {};
+    const splTokens = (spot.splTokens as Array<Record<string, unknown>> | undefined) ?? [];
+    const nx8SpotQty = splTokens
+      .filter((t) => {
+        const mint = String(t?.mint ?? "");
+        const symbol = String(t?.symbol ?? "").toUpperCase();
+        return mint === nx8Mint || symbol === "NX8";
+      })
+      .reduce((acc, t) => acc + (asNumLoose(t?.amountUi) ?? 0), 0);
+
+    const kaminoLiquidity = (json.kaminoLiquidity as Record<string, unknown> | undefined) ?? {};
+    const kaminoLiquidityData = (kaminoLiquidity.data as Record<string, unknown> | undefined) ?? {};
+    const strategyValuations = (kaminoLiquidityData.strategyValuations as Array<Record<string, unknown>> | undefined) ?? [];
+    let { nx8KaminoQty, nx8PriceUsd } = extractNx8FromStrategyValuations(strategyValuations, nx8Mint);
+
+    // Fallback: summary mode is a separate cache key on the local server and can have fresher Kamino valuations
+    // than mode=full if the full payload was cached during an upstream partial response.
+    if (nx8KaminoQty <= 0 || nx8PriceUsd == null) {
+      try {
+        const summaryRes = await fetch(`${baseUrl.replace(/\/$/, "")}/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`);
+        if (summaryRes.ok) {
+          const summaryJson = (await summaryRes.json()) as Record<string, unknown>;
+          const summaryKamino = (summaryJson.kaminoLiquidity as Record<string, unknown> | undefined) ?? {};
+          const summaryVals = (summaryKamino.strategyValuations as Array<Record<string, unknown>> | undefined) ?? [];
+          const fallback = extractNx8FromStrategyValuations(summaryVals, nx8Mint);
+          if (nx8KaminoQty <= 0) nx8KaminoQty = fallback.nx8KaminoQty;
+          if (nx8PriceUsd == null) nx8PriceUsd = fallback.nx8PriceUsd;
+        }
+      } catch {
+        // Keep best-effort values from full payload / env fallbacks.
+      }
+    }
+    const nx8LongQty = nx8SpotQty + nx8KaminoQty;
+
     const jupiterPerps = (json.jupiterPerps as Record<string, unknown> | undefined) ?? {};
     const jupiterData = (jupiterPerps.data as Record<string, unknown> | undefined) ?? {};
     const raw = (jupiterData.raw as Record<string, unknown> | undefined) ?? {};
@@ -64,7 +124,7 @@ async function fetchBtcPerpExposureFromApi(): Promise<{
       return symbol.includes("BTC") || address === wbtcMint;
     });
     if (!btcPositions.length) {
-      return { shortBtcQty: 0, shortBtcNotionalUsd: 0, leverage: null, liqPrice: null, markPrice: null, liqBufferPct: null };
+      return { nx8LongQty, nx8PriceUsd, shortBtcQty: 0, shortBtcNotionalUsd: 0, leverage: null, liqPrice: null, markPrice: null, liqBufferPct: null };
     }
 
     let shortBtcQty = 0;
@@ -87,7 +147,7 @@ async function fetchBtcPerpExposureFromApi(): Promise<{
     }
 
     const liqBufferPct = liqPrice != null && markPrice != null && markPrice > 0 ? ((liqPrice - markPrice) / markPrice) * 100 : null;
-    return { shortBtcQty, shortBtcNotionalUsd, leverage, liqPrice, markPrice, liqBufferPct };
+    return { nx8LongQty, nx8PriceUsd, shortBtcQty, shortBtcNotionalUsd, leverage, liqPrice, markPrice, liqBufferPct };
   } catch {
     return null;
   }
@@ -102,8 +162,8 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
   ]);
   const btcPerp = await fetchBtcPerpExposureFromApi();
 
-  const spotNx8 = Number(process.env.PORTFOLIO_NX8_PRICE_USD ?? 0);
-  const nx8Long = Number(process.env.PORTFOLIO_NX8_LONG_UNITS ?? 0);
+  const spotNx8 = btcPerp?.nx8PriceUsd ?? Number(process.env.PORTFOLIO_NX8_PRICE_USD ?? 0);
+  const nx8Long = btcPerp?.nx8LongQty ?? Number(process.env.PORTFOLIO_NX8_LONG_UNITS ?? 0);
   const btcShort = btcPerp?.shortBtcQty ?? Number(process.env.PORTFOLIO_BTC_SHORT_UNITS ?? 0);
   const btcPrice = btcPerp?.markPrice ?? Number(process.env.PORTFOLIO_BTC_PRICE_USD ?? 0);
   const leverage = btcPerp?.leverage ?? Number(process.env.PORTFOLIO_BTC_PERP_LEVERAGE ?? 2.5);

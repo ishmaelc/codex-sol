@@ -1,34 +1,34 @@
 {
-  "updatedAt": "2026-02-26T01:13:02.226Z",
+  "updatedAt": "2026-02-26T03:05:09.631Z",
   "monitorCadenceHours": 24,
   "systems": [
     {
       "id": "sol_hedged",
       "label": "SOL Hedged Yield System",
-      "score": 0.6187493379752228,
+      "score": 0.6176918379752228,
       "status": "yellow",
-      "netDelta": 44.570596848544106,
+      "netDelta": 44.94459684854411,
       "leverage": 2.379653523185782,
-      "liqBufferPct": 34.83253425717418,
+      "liqBufferPct": 36.073703878146816,
       "riskFlags": [
         "RANGE_EDGE_WARN",
         "DELTA_DRIFT"
       ],
-      "updatedAt": "2026-02-26T01:13:02.214Z"
+      "updatedAt": "2026-02-26T03:05:09.626Z"
     },
     {
       "id": "nx8_hedged",
       "label": "NX8 Hedged Yield System",
-      "score": 0.41893210281486126,
-      "status": "orange",
-      "netDelta": -219.145173,
+      "score": 0.6984727950145834,
+      "status": "yellow",
+      "netDelta": 13.860893342212279,
       "leverage": 2.888057112755396,
-      "liqBufferPct": 35.06168205274851,
+      "liqBufferPct": 35.529691271908156,
       "riskFlags": [
         "PROXY_HEDGE",
         "MISSING_DATA"
       ],
-      "updatedAt": "2026-02-26T01:13:02.223Z"
+      "updatedAt": "2026-02-26T03:05:09.630Z"
     }
   ]
 }
