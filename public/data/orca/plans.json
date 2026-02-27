@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-02-27T19:02:45.151Z",
+  "regime": {
+    "label": "MODERATE",
+    "fundingAprPct": 3.504
+  },
+  "plans": [
+    {
+      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "tokenA": {
+        "mint": "So11111111111111111111111111111111111111112",
+        "symbol": "SOL",
+        "decimals": 9
+      },
+      "tokenB": {
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "symbol": "USDC",
+        "decimals": 6
+      },
+      "spotPrice": 81.46151629,
+      "volatilityProxyPctAnnual": 108.41,
+      "regimeWidthMultiplier": 1,
+      "presets": [
+        {
+          "label": "Conservative",
+          "halfWidthPct": 12.03,
+          "lowerPct": -12.03,
+          "upperPct": 12.03,
+          "lowerPrice": 71.664116,
+          "upperPrice": 91.258917,
+          "rationale": "~0.8x weekly sigma proxy from SOL-STABLE volatility, scaled by regime"
+        },
+        {
+          "label": "Base",
+          "halfWidthPct": 18.04,
+          "lowerPct": -18.04,
+          "upperPct": 18.04,
+          "lowerPrice": 66.765415,
+          "upperPrice": 96.157617,
+          "rationale": "~1.2x weekly sigma proxy from SOL-STABLE volatility, scaled by regime"
+        },
+        {
+          "label": "Aggressive",
+          "halfWidthPct": 27.06,
+          "lowerPct": -27.06,
+          "upperPct": 27.06,
+          "lowerPrice": 59.417365,
+          "upperPrice": 103.505668,
+          "rationale": "~1.8x weekly sigma proxy from SOL-STABLE volatility, scaled by regime"
+        }
+      ],
+      "recommendedPreset": "Base",
+      "hedge": {
+        "enabled": true,
+        "side": "SHORT_SOL",
+        "deltaEstimateSolPer10kUsd": 42.0719,
+        "recommendedShortSolPer10kUsd": 53.291,
+        "recommendedShortNotionalUsdPer10kUsd": 4341.17,
+        "hedgeMultiplier": 0.95,
+        "approxDeltaFraction": 0.3427,
+        "depositRatioSource": "orca-sdk",
+        "depositRatioRiskAssetUSD": 0.457,
+        "depositRatioTokenARatioUSD": 0.457,
+        "depositRatioTokenBRatioUSD": 0.543,
+        "depositRatioTokenASymbol": "SOL",
+        "depositRatioTokenBSymbol": "USDC",
+        "hedgeUSDPer10k": 4341.17,
+        "hedgeSOLPer10k": 53.291,
+        "fundingAprPct": 3.504,
+        "note": "derived from deposit ratio for planned Base range at current price; hedge normalized per $10k with regime multiplier and SOL short sizing."
+      }
+    }
+  ],
+  "notes": [
+    "Range presets are weekly-active heuristics around current spot using regime + pool-type volatility proxies.",
+    "Hedges are normalized per $10k deployed and use the fixed funding APR proxy."
+  ]
+}

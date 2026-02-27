@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-02-27T19:02:45.154Z",
+  "regime": "MODERATE",
+  "maxPools": 2,
+  "allocations": [
+    {
+      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "weightPct": 100,
+      "rationale": "Type-neutral allocation: weights derived from relative scores."
+    }
+  ],
+  "rationale": [
+    "Only one pool qualified; allocate 100% to the sole shortlist pool."
+  ],
+  "notes": [
+    "Allocation is a recommendation layer on top of the shortlist, capped at 2 pools."
+  ]
+}

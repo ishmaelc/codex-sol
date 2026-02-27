@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-02-27T19:02:45.155Z",
+  "regime": "MODERATE",
+  "alerts": [],
+  "notes": [
+    "Threshold-based monitor. Alerts are heuristic and intended for weekly-active LP workflows.",
+    "Operator mode cadence=24h warnEdge<=25.0% action<=10.0%"
+  ]
+}

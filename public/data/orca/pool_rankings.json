@@ -1,0 +1,1149 @@
+{
+  "generatedAt": "2026-02-27T19:02:45.150Z",
+  "regime": {
+    "label": "MODERATE",
+    "confidence": 0.99,
+    "score": 0.4725
+  },
+  "config": {
+    "tvlFloorSolStableUsd": 250000,
+    "tvlFloorLstUsd": 100000,
+    "volume24hFloorUsd": 50000,
+    "topN": 10
+  },
+  "counts": {
+    "fetchedPools": 479,
+    "eligibleUniverse": 33,
+    "afterThresholds": 14,
+    "ranked": 10
+  },
+  "pools": [
+    {
+      "rank": 1,
+      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "feeTierPct": 0.04,
+      "tvlUsd": 26243804.44,
+      "volume24hUsd": 144301413.73,
+      "feeAprPct": 80.28,
+      "volumeTvl": 5.4985,
+      "depthUsd1Pct": 3188622.24,
+      "depthUsd2Pct": 6058382.25,
+      "score": 62.12,
+      "explanation": "feeAPR 80.3%; turnover 549.8%/day; depth±1% ~$3,188,622; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "USDC"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 81.46151629,
+      "tickSpacing": 4,
+      "tickCurrentIndex": -25078,
+      "sqrtPriceX64": "5264970804792341504",
+      "depthTvl1PctRatio": 0.1215,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 5.498494476263157,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 2,
+      "poolAddress": "5hWJUNTtEtKmKgDXpthJXXRRmJrz5vJ7uJzrUNVdrwLg",
+      "pool": "USDC/JitoSOL",
+      "type": "LST-STABLE",
+      "feeTierPct": 0.05,
+      "tvlUsd": 348624.81,
+      "volume24hUsd": 644120.06,
+      "feeAprPct": 33.72,
+      "volumeTvl": 1.8476,
+      "depthUsd1Pct": 28238.61,
+      "depthUsd2Pct": 53653.36,
+      "score": 50.99,
+      "explanation": "feeAPR 33.7%; turnover 184.8%/day; depth±1% ~$28,239; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "USDC",
+        "JitoSOL"
+      ],
+      "tokenMints": [
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+      ],
+      "tokenDecimals": [
+        6,
+        9
+      ],
+      "spotPrice": 0.00971897,
+      "tickSpacing": 8,
+      "tickCurrentIndex": 22741,
+      "sqrtPriceX64": "57508214116244680330",
+      "depthTvl1PctRatio": 0.081,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 1.8476024684788854,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 3,
+      "poolAddress": "AqJ5JYNb7ApkJwvbuXxPnTtKeuizjvC1s2fkp382y9LC",
+      "pool": "mSOL/USDC",
+      "type": "LST-STABLE",
+      "feeTierPct": 0.05,
+      "tvlUsd": 142126.5,
+      "volume24hUsd": 181940.89,
+      "feeAprPct": 23.36,
+      "volumeTvl": 1.2801,
+      "depthUsd1Pct": 11502.65,
+      "depthUsd2Pct": 21855.03,
+      "score": 48.43,
+      "explanation": "feeAPR 23.4%; turnover 128.0%/day; depth±1% ~$11,503; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "mSOL",
+        "USDC"
+      ],
+      "tokenMints": [
+        "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 110.8289955,
+      "tickSpacing": 8,
+      "tickCurrentIndex": -21999,
+      "sqrtPriceX64": "6141103558151131587",
+      "depthTvl1PctRatio": 0.0809,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 1.2801334513969271,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 4,
+      "poolAddress": "9VuCJupdVXC1kKijULJQ2GPKPvk2kSMHtgvwDuQq3TDo",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "feeTierPct": 0.16,
+      "tvlUsd": 510247.43,
+      "volume24hUsd": 436735.81,
+      "feeAprPct": 49.99,
+      "volumeTvl": 0.8559,
+      "depthUsd1Pct": 20440.3,
+      "depthUsd2Pct": 38836.57,
+      "score": 47.93,
+      "explanation": "feeAPR 50.0%; turnover 85.6%/day; depth±1% ~$20,440; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "USDC"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 81.53788053,
+      "tickSpacing": 16,
+      "tickCurrentIndex": -25069,
+      "sqrtPriceX64": "5267437990185399729",
+      "depthTvl1PctRatio": 0.0401,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.8559294746692776,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 5,
+      "poolAddress": "Hp53XEtt4S8SvPCXarsLSdGfZBuUr5mMmZmX2DRNXQKp",
+      "pool": "SOL/JitoSOL",
+      "type": "SOL-LST",
+      "feeTierPct": 0.01,
+      "tvlUsd": 6706874.58,
+      "volume24hUsd": 10394655.08,
+      "feeAprPct": 5.66,
+      "volumeTvl": 1.5499,
+      "depthUsd1Pct": 814885.26,
+      "depthUsd2Pct": 1548282,
+      "score": 47.1,
+      "explanation": "feeAPR 5.7%; turnover 155.0%/day; depth±1% ~$814,885; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "JitoSOL"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+      ],
+      "tokenDecimals": [
+        9,
+        9
+      ],
+      "spotPrice": 0.79188068,
+      "tickSpacing": 1,
+      "tickCurrentIndex": -2334,
+      "sqrtPriceX64": "16415329217048508062",
+      "depthTvl1PctRatio": 0.1215,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 1.5498508221856568,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 6,
+      "poolAddress": "FwewVm8u6tFPGewAyHmWAqad9hmF7mvqxK4mJ7iNqqGC",
+      "pool": "SOL/USDT",
+      "type": "SOL-STABLE",
+      "feeTierPct": 0.02,
+      "tvlUsd": 600694.11,
+      "volume24hUsd": 563794.05,
+      "feeAprPct": 6.85,
+      "volumeTvl": 0.9386,
+      "depthUsd1Pct": 72984.33,
+      "depthUsd2Pct": 138670.24,
+      "score": 41.09,
+      "explanation": "feeAPR 6.9%; turnover 93.9%/day; depth±1% ~$72,984; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "USDT"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 81.45639074,
+      "tickSpacing": 2,
+      "tickCurrentIndex": -25079,
+      "sqrtPriceX64": "5264805166688865121",
+      "depthTvl1PctRatio": 0.1215,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.9385709704352976,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 7,
+      "poolAddress": "5KqohoeGjTjyHAFJJywK4J7fkFuK82PfMyuseGgLKZu2",
+      "pool": "SOL/USDG",
+      "type": "SOL-STABLE",
+      "feeTierPct": 0.04,
+      "tvlUsd": 4344225.12,
+      "volume24hUsd": 2921876.66,
+      "feeAprPct": 9.82,
+      "volumeTvl": 0.6726,
+      "depthUsd1Pct": 494965.86,
+      "depthUsd2Pct": 940435.14,
+      "score": 38.62,
+      "explanation": "feeAPR 9.8%; turnover 67.3%/day; depth±1% ~$494,966; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "USDG"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 81.46097118,
+      "tickSpacing": 4,
+      "tickCurrentIndex": -25078,
+      "sqrtPriceX64": "5264953189268477555",
+      "depthTvl1PctRatio": 0.1139,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.6725886839335813,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 8,
+      "poolAddress": "5snaYowgJDfuM1LPbTNUYHbgkKHtVVnzHiiLDWUV2hh8",
+      "pool": "bSOL/JitoSOL",
+      "type": "LST-LST",
+      "feeTierPct": 0.01,
+      "tvlUsd": 122943.44,
+      "volume24hUsd": 93038.86,
+      "feeAprPct": 2.76,
+      "volumeTvl": 0.7568,
+      "depthUsd1Pct": 14380.45,
+      "depthUsd2Pct": 27322.86,
+      "score": 34.43,
+      "explanation": "feeAPR 2.8%; turnover 75.7%/day; depth±1% ~$14,380; stability 25%; 1 active reward; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "bSOL",
+        "JitoSOL"
+      ],
+      "tokenMints": [
+        "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",
+        "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+      ],
+      "tokenDecimals": [
+        9,
+        9
+      ],
+      "spotPrice": 1.01248349,
+      "tickSpacing": 1,
+      "tickCurrentIndex": 124,
+      "sqrtPriceX64": "18561526807216493210",
+      "depthTvl1PctRatio": 0.117,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.7567615134455705,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 9,
+      "poolAddress": "8dxebMPEZjYJvE5JfC9iicZt9pkATBLW1PFgRHi5wGGv",
+      "pool": "mSOL/JitoSOL",
+      "type": "LST-LST",
+      "feeTierPct": 0.01,
+      "tvlUsd": 150705.17,
+      "volume24hUsd": 69621.91,
+      "feeAprPct": 1.69,
+      "volumeTvl": 0.462,
+      "depthUsd1Pct": 15764.64,
+      "depthUsd2Pct": 29952.82,
+      "score": 31.81,
+      "explanation": "feeAPR 1.7%; turnover 46.2%/day; depth±1% ~$15,765; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "mSOL",
+        "JitoSOL"
+      ],
+      "tokenMints": [
+        "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+        "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+      ],
+      "tokenDecimals": [
+        9,
+        9
+      ],
+      "spotPrice": 1.07726452,
+      "tickSpacing": 1,
+      "tickCurrentIndex": 744,
+      "sqrtPriceX64": "19146125512888047212",
+      "depthTvl1PctRatio": 0.1046,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.46197427573772487,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 10,
+      "poolAddress": "8phK65jxmTPEN158xLgSr4oZvssw9SyTErpNZj3g7px4",
+      "pool": "SOL/bSOL",
+      "type": "SOL-LST",
+      "feeTierPct": 0.01,
+      "tvlUsd": 583910.48,
+      "volume24hUsd": 64255.41,
+      "feeAprPct": 0.4,
+      "volumeTvl": 0.11,
+      "depthUsd1Pct": 44234.63,
+      "depthUsd2Pct": 84045.79,
+      "score": 24.7,
+      "explanation": "feeAPR 0.4%; turnover 11.0%/day; depth±1% ~$44,235; stability 25%; 1 active reward; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "bSOL"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"
+      ],
+      "tokenDecimals": [
+        9,
+        9
+      ],
+      "spotPrice": 0.78217207,
+      "tickSpacing": 1,
+      "tickCurrentIndex": -2457,
+      "sqrtPriceX64": "16314391257177103330",
+      "depthTvl1PctRatio": 0.0758,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.11004325431237633,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    }
+  ],
+  "topPoolsOverall": [
+    {
+      "rank": 1,
+      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "feeTierPct": 0.04,
+      "tvlUsd": 26243804.44,
+      "volume24hUsd": 144301413.73,
+      "feeAprPct": 80.28,
+      "volumeTvl": 5.4985,
+      "depthUsd1Pct": 3188622.24,
+      "depthUsd2Pct": 6058382.25,
+      "score": 62.12,
+      "explanation": "feeAPR 80.3%; turnover 549.8%/day; depth±1% ~$3,188,622; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "USDC"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 81.46151629,
+      "tickSpacing": 4,
+      "tickCurrentIndex": -25078,
+      "sqrtPriceX64": "5264970804792341504",
+      "depthTvl1PctRatio": 0.1215,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 5.498494476263157,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 2,
+      "poolAddress": "5hWJUNTtEtKmKgDXpthJXXRRmJrz5vJ7uJzrUNVdrwLg",
+      "pool": "USDC/JitoSOL",
+      "type": "LST-STABLE",
+      "feeTierPct": 0.05,
+      "tvlUsd": 348624.81,
+      "volume24hUsd": 644120.06,
+      "feeAprPct": 33.72,
+      "volumeTvl": 1.8476,
+      "depthUsd1Pct": 28238.61,
+      "depthUsd2Pct": 53653.36,
+      "score": 50.99,
+      "explanation": "feeAPR 33.7%; turnover 184.8%/day; depth±1% ~$28,239; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "USDC",
+        "JitoSOL"
+      ],
+      "tokenMints": [
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+      ],
+      "tokenDecimals": [
+        6,
+        9
+      ],
+      "spotPrice": 0.00971897,
+      "tickSpacing": 8,
+      "tickCurrentIndex": 22741,
+      "sqrtPriceX64": "57508214116244680330",
+      "depthTvl1PctRatio": 0.081,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 1.8476024684788854,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 3,
+      "poolAddress": "AqJ5JYNb7ApkJwvbuXxPnTtKeuizjvC1s2fkp382y9LC",
+      "pool": "mSOL/USDC",
+      "type": "LST-STABLE",
+      "feeTierPct": 0.05,
+      "tvlUsd": 142126.5,
+      "volume24hUsd": 181940.89,
+      "feeAprPct": 23.36,
+      "volumeTvl": 1.2801,
+      "depthUsd1Pct": 11502.65,
+      "depthUsd2Pct": 21855.03,
+      "score": 48.43,
+      "explanation": "feeAPR 23.4%; turnover 128.0%/day; depth±1% ~$11,503; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "mSOL",
+        "USDC"
+      ],
+      "tokenMints": [
+        "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 110.8289955,
+      "tickSpacing": 8,
+      "tickCurrentIndex": -21999,
+      "sqrtPriceX64": "6141103558151131587",
+      "depthTvl1PctRatio": 0.0809,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 1.2801334513969271,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 4,
+      "poolAddress": "9VuCJupdVXC1kKijULJQ2GPKPvk2kSMHtgvwDuQq3TDo",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "feeTierPct": 0.16,
+      "tvlUsd": 510247.43,
+      "volume24hUsd": 436735.81,
+      "feeAprPct": 49.99,
+      "volumeTvl": 0.8559,
+      "depthUsd1Pct": 20440.3,
+      "depthUsd2Pct": 38836.57,
+      "score": 47.93,
+      "explanation": "feeAPR 50.0%; turnover 85.6%/day; depth±1% ~$20,440; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "USDC"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 81.53788053,
+      "tickSpacing": 16,
+      "tickCurrentIndex": -25069,
+      "sqrtPriceX64": "5267437990185399729",
+      "depthTvl1PctRatio": 0.0401,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.8559294746692776,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 5,
+      "poolAddress": "Hp53XEtt4S8SvPCXarsLSdGfZBuUr5mMmZmX2DRNXQKp",
+      "pool": "SOL/JitoSOL",
+      "type": "SOL-LST",
+      "feeTierPct": 0.01,
+      "tvlUsd": 6706874.58,
+      "volume24hUsd": 10394655.08,
+      "feeAprPct": 5.66,
+      "volumeTvl": 1.5499,
+      "depthUsd1Pct": 814885.26,
+      "depthUsd2Pct": 1548282,
+      "score": 47.1,
+      "explanation": "feeAPR 5.7%; turnover 155.0%/day; depth±1% ~$814,885; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "JitoSOL"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+      ],
+      "tokenDecimals": [
+        9,
+        9
+      ],
+      "spotPrice": 0.79188068,
+      "tickSpacing": 1,
+      "tickCurrentIndex": -2334,
+      "sqrtPriceX64": "16415329217048508062",
+      "depthTvl1PctRatio": 0.1215,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 1.5498508221856568,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 6,
+      "poolAddress": "FwewVm8u6tFPGewAyHmWAqad9hmF7mvqxK4mJ7iNqqGC",
+      "pool": "SOL/USDT",
+      "type": "SOL-STABLE",
+      "feeTierPct": 0.02,
+      "tvlUsd": 600694.11,
+      "volume24hUsd": 563794.05,
+      "feeAprPct": 6.85,
+      "volumeTvl": 0.9386,
+      "depthUsd1Pct": 72984.33,
+      "depthUsd2Pct": 138670.24,
+      "score": 41.09,
+      "explanation": "feeAPR 6.9%; turnover 93.9%/day; depth±1% ~$72,984; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "USDT"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 81.45639074,
+      "tickSpacing": 2,
+      "tickCurrentIndex": -25079,
+      "sqrtPriceX64": "5264805166688865121",
+      "depthTvl1PctRatio": 0.1215,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.9385709704352976,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 7,
+      "poolAddress": "5KqohoeGjTjyHAFJJywK4J7fkFuK82PfMyuseGgLKZu2",
+      "pool": "SOL/USDG",
+      "type": "SOL-STABLE",
+      "feeTierPct": 0.04,
+      "tvlUsd": 4344225.12,
+      "volume24hUsd": 2921876.66,
+      "feeAprPct": 9.82,
+      "volumeTvl": 0.6726,
+      "depthUsd1Pct": 494965.86,
+      "depthUsd2Pct": 940435.14,
+      "score": 38.62,
+      "explanation": "feeAPR 9.8%; turnover 67.3%/day; depth±1% ~$494,966; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "USDG"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+      ],
+      "tokenDecimals": [
+        9,
+        6
+      ],
+      "spotPrice": 81.46097118,
+      "tickSpacing": 4,
+      "tickCurrentIndex": -25078,
+      "sqrtPriceX64": "5264953189268477555",
+      "depthTvl1PctRatio": 0.1139,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.6725886839335813,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 8,
+      "poolAddress": "5snaYowgJDfuM1LPbTNUYHbgkKHtVVnzHiiLDWUV2hh8",
+      "pool": "bSOL/JitoSOL",
+      "type": "LST-LST",
+      "feeTierPct": 0.01,
+      "tvlUsd": 122943.44,
+      "volume24hUsd": 93038.86,
+      "feeAprPct": 2.76,
+      "volumeTvl": 0.7568,
+      "depthUsd1Pct": 14380.45,
+      "depthUsd2Pct": 27322.86,
+      "score": 34.43,
+      "explanation": "feeAPR 2.8%; turnover 75.7%/day; depth±1% ~$14,380; stability 25%; 1 active reward; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "bSOL",
+        "JitoSOL"
+      ],
+      "tokenMints": [
+        "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",
+        "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+      ],
+      "tokenDecimals": [
+        9,
+        9
+      ],
+      "spotPrice": 1.01248349,
+      "tickSpacing": 1,
+      "tickCurrentIndex": 124,
+      "sqrtPriceX64": "18561526807216493210",
+      "depthTvl1PctRatio": 0.117,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.7567615134455705,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 9,
+      "poolAddress": "8dxebMPEZjYJvE5JfC9iicZt9pkATBLW1PFgRHi5wGGv",
+      "pool": "mSOL/JitoSOL",
+      "type": "LST-LST",
+      "feeTierPct": 0.01,
+      "tvlUsd": 150705.17,
+      "volume24hUsd": 69621.91,
+      "feeAprPct": 1.69,
+      "volumeTvl": 0.462,
+      "depthUsd1Pct": 15764.64,
+      "depthUsd2Pct": 29952.82,
+      "score": 31.81,
+      "explanation": "feeAPR 1.7%; turnover 46.2%/day; depth±1% ~$15,765; stability 25%; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "mSOL",
+        "JitoSOL"
+      ],
+      "tokenMints": [
+        "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+        "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+      ],
+      "tokenDecimals": [
+        9,
+        9
+      ],
+      "spotPrice": 1.07726452,
+      "tickSpacing": 1,
+      "tickCurrentIndex": 744,
+      "sqrtPriceX64": "19146125512888047212",
+      "depthTvl1PctRatio": 0.1046,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.46197427573772487,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    },
+    {
+      "rank": 10,
+      "poolAddress": "8phK65jxmTPEN158xLgSr4oZvssw9SyTErpNZj3g7px4",
+      "pool": "SOL/bSOL",
+      "type": "SOL-LST",
+      "feeTierPct": 0.01,
+      "tvlUsd": 583910.48,
+      "volume24hUsd": 64255.41,
+      "feeAprPct": 0.4,
+      "volumeTvl": 0.11,
+      "depthUsd1Pct": 44234.63,
+      "depthUsd2Pct": 84045.79,
+      "score": 24.7,
+      "explanation": "feeAPR 0.4%; turnover 11.0%/day; depth±1% ~$44,235; stability 25%; 1 active reward; stability history sparse",
+      "validatedOnchain": true,
+      "tokenSymbols": [
+        "SOL",
+        "bSOL"
+      ],
+      "tokenMints": [
+        "So11111111111111111111111111111111111111112",
+        "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"
+      ],
+      "tokenDecimals": [
+        9,
+        9
+      ],
+      "spotPrice": 0.78217207,
+      "tickSpacing": 1,
+      "tickCurrentIndex": -2457,
+      "sqrtPriceX64": "16314391257177103330",
+      "depthTvl1PctRatio": 0.0758,
+      "stabilityScore": 0.25,
+      "meanVolTvl7d": 0.11004325431237633,
+      "stdevVolTvl7d": 0,
+      "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+    }
+  ],
+  "buckets": {
+    "SOL-STABLE": [
+      {
+        "rank": 1,
+        "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+        "pool": "SOL/USDC",
+        "type": "SOL-STABLE",
+        "feeTierPct": 0.04,
+        "tvlUsd": 26243804.44,
+        "volume24hUsd": 144301413.73,
+        "feeAprPct": 80.28,
+        "volumeTvl": 5.4985,
+        "depthUsd1Pct": 3188622.24,
+        "depthUsd2Pct": 6058382.25,
+        "score": 62.12,
+        "explanation": "feeAPR 80.3%; turnover 549.8%/day; depth±1% ~$3,188,622; stability 25%; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "SOL",
+          "USDC"
+        ],
+        "tokenMints": [
+          "So11111111111111111111111111111111111111112",
+          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        ],
+        "tokenDecimals": [
+          9,
+          6
+        ],
+        "spotPrice": 81.46151629,
+        "tickSpacing": 4,
+        "tickCurrentIndex": -25078,
+        "sqrtPriceX64": "5264970804792341504",
+        "depthTvl1PctRatio": 0.1215,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 5.498494476263157,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      },
+      {
+        "rank": 4,
+        "poolAddress": "9VuCJupdVXC1kKijULJQ2GPKPvk2kSMHtgvwDuQq3TDo",
+        "pool": "SOL/USDC",
+        "type": "SOL-STABLE",
+        "feeTierPct": 0.16,
+        "tvlUsd": 510247.43,
+        "volume24hUsd": 436735.81,
+        "feeAprPct": 49.99,
+        "volumeTvl": 0.8559,
+        "depthUsd1Pct": 20440.3,
+        "depthUsd2Pct": 38836.57,
+        "score": 47.93,
+        "explanation": "feeAPR 50.0%; turnover 85.6%/day; depth±1% ~$20,440; stability 25%; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "SOL",
+          "USDC"
+        ],
+        "tokenMints": [
+          "So11111111111111111111111111111111111111112",
+          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        ],
+        "tokenDecimals": [
+          9,
+          6
+        ],
+        "spotPrice": 81.53788053,
+        "tickSpacing": 16,
+        "tickCurrentIndex": -25069,
+        "sqrtPriceX64": "5267437990185399729",
+        "depthTvl1PctRatio": 0.0401,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 0.8559294746692776,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      },
+      {
+        "rank": 6,
+        "poolAddress": "FwewVm8u6tFPGewAyHmWAqad9hmF7mvqxK4mJ7iNqqGC",
+        "pool": "SOL/USDT",
+        "type": "SOL-STABLE",
+        "feeTierPct": 0.02,
+        "tvlUsd": 600694.11,
+        "volume24hUsd": 563794.05,
+        "feeAprPct": 6.85,
+        "volumeTvl": 0.9386,
+        "depthUsd1Pct": 72984.33,
+        "depthUsd2Pct": 138670.24,
+        "score": 41.09,
+        "explanation": "feeAPR 6.9%; turnover 93.9%/day; depth±1% ~$72,984; stability 25%; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "SOL",
+          "USDT"
+        ],
+        "tokenMints": [
+          "So11111111111111111111111111111111111111112",
+          "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+        ],
+        "tokenDecimals": [
+          9,
+          6
+        ],
+        "spotPrice": 81.45639074,
+        "tickSpacing": 2,
+        "tickCurrentIndex": -25079,
+        "sqrtPriceX64": "5264805166688865121",
+        "depthTvl1PctRatio": 0.1215,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 0.9385709704352976,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      },
+      {
+        "rank": 8,
+        "poolAddress": "5KqohoeGjTjyHAFJJywK4J7fkFuK82PfMyuseGgLKZu2",
+        "pool": "SOL/USDG",
+        "type": "SOL-STABLE",
+        "feeTierPct": 0.04,
+        "tvlUsd": 4344225.12,
+        "volume24hUsd": 2921876.66,
+        "feeAprPct": 9.82,
+        "volumeTvl": 0.6726,
+        "depthUsd1Pct": 494965.86,
+        "depthUsd2Pct": 940435.14,
+        "score": 38.62,
+        "explanation": "feeAPR 9.8%; turnover 67.3%/day; depth±1% ~$494,966; stability 25%; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "SOL",
+          "USDG"
+        ],
+        "tokenMints": [
+          "So11111111111111111111111111111111111111112",
+          "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+        ],
+        "tokenDecimals": [
+          9,
+          6
+        ],
+        "spotPrice": 81.46097118,
+        "tickSpacing": 4,
+        "tickCurrentIndex": -25078,
+        "sqrtPriceX64": "5264953189268477555",
+        "depthTvl1PctRatio": 0.1139,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 0.6725886839335813,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      }
+    ],
+    "SOL-LST": [
+      {
+        "rank": 5,
+        "poolAddress": "Hp53XEtt4S8SvPCXarsLSdGfZBuUr5mMmZmX2DRNXQKp",
+        "pool": "SOL/JitoSOL",
+        "type": "SOL-LST",
+        "feeTierPct": 0.01,
+        "tvlUsd": 6706874.58,
+        "volume24hUsd": 10394655.08,
+        "feeAprPct": 5.66,
+        "volumeTvl": 1.5499,
+        "depthUsd1Pct": 814885.26,
+        "depthUsd2Pct": 1548282,
+        "score": 47.1,
+        "explanation": "feeAPR 5.7%; turnover 155.0%/day; depth±1% ~$814,885; stability 25%; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "SOL",
+          "JitoSOL"
+        ],
+        "tokenMints": [
+          "So11111111111111111111111111111111111111112",
+          "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+        ],
+        "tokenDecimals": [
+          9,
+          9
+        ],
+        "spotPrice": 0.79188068,
+        "tickSpacing": 1,
+        "tickCurrentIndex": -2334,
+        "sqrtPriceX64": "16415329217048508062",
+        "depthTvl1PctRatio": 0.1215,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 1.5498508221856568,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      },
+      {
+        "rank": 14,
+        "poolAddress": "8phK65jxmTPEN158xLgSr4oZvssw9SyTErpNZj3g7px4",
+        "pool": "SOL/bSOL",
+        "type": "SOL-LST",
+        "feeTierPct": 0.01,
+        "tvlUsd": 583910.48,
+        "volume24hUsd": 64255.41,
+        "feeAprPct": 0.4,
+        "volumeTvl": 0.11,
+        "depthUsd1Pct": 44234.63,
+        "depthUsd2Pct": 84045.79,
+        "score": 24.7,
+        "explanation": "feeAPR 0.4%; turnover 11.0%/day; depth±1% ~$44,235; stability 25%; 1 active reward; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "SOL",
+          "bSOL"
+        ],
+        "tokenMints": [
+          "So11111111111111111111111111111111111111112",
+          "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"
+        ],
+        "tokenDecimals": [
+          9,
+          9
+        ],
+        "spotPrice": 0.78217207,
+        "tickSpacing": 1,
+        "tickCurrentIndex": -2457,
+        "sqrtPriceX64": "16314391257177103330",
+        "depthTvl1PctRatio": 0.0758,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 0.11004325431237633,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      }
+    ],
+    "LST-STABLE": [
+      {
+        "rank": 2,
+        "poolAddress": "5hWJUNTtEtKmKgDXpthJXXRRmJrz5vJ7uJzrUNVdrwLg",
+        "pool": "USDC/JitoSOL",
+        "type": "LST-STABLE",
+        "feeTierPct": 0.05,
+        "tvlUsd": 348624.81,
+        "volume24hUsd": 644120.06,
+        "feeAprPct": 33.72,
+        "volumeTvl": 1.8476,
+        "depthUsd1Pct": 28238.61,
+        "depthUsd2Pct": 53653.36,
+        "score": 50.99,
+        "explanation": "feeAPR 33.7%; turnover 184.8%/day; depth±1% ~$28,239; stability 25%; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "USDC",
+          "JitoSOL"
+        ],
+        "tokenMints": [
+          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+        ],
+        "tokenDecimals": [
+          6,
+          9
+        ],
+        "spotPrice": 0.00971897,
+        "tickSpacing": 8,
+        "tickCurrentIndex": 22741,
+        "sqrtPriceX64": "57508214116244680330",
+        "depthTvl1PctRatio": 0.081,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 1.8476024684788854,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      },
+      {
+        "rank": 3,
+        "poolAddress": "AqJ5JYNb7ApkJwvbuXxPnTtKeuizjvC1s2fkp382y9LC",
+        "pool": "mSOL/USDC",
+        "type": "LST-STABLE",
+        "feeTierPct": 0.05,
+        "tvlUsd": 142126.5,
+        "volume24hUsd": 181940.89,
+        "feeAprPct": 23.36,
+        "volumeTvl": 1.2801,
+        "depthUsd1Pct": 11502.65,
+        "depthUsd2Pct": 21855.03,
+        "score": 48.43,
+        "explanation": "feeAPR 23.4%; turnover 128.0%/day; depth±1% ~$11,503; stability 25%; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "mSOL",
+          "USDC"
+        ],
+        "tokenMints": [
+          "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        ],
+        "tokenDecimals": [
+          9,
+          6
+        ],
+        "spotPrice": 110.8289955,
+        "tickSpacing": 8,
+        "tickCurrentIndex": -21999,
+        "sqrtPriceX64": "6141103558151131587",
+        "depthTvl1PctRatio": 0.0809,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 1.2801334513969271,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      }
+    ],
+    "LST-LST": [
+      {
+        "rank": 9,
+        "poolAddress": "5snaYowgJDfuM1LPbTNUYHbgkKHtVVnzHiiLDWUV2hh8",
+        "pool": "bSOL/JitoSOL",
+        "type": "LST-LST",
+        "feeTierPct": 0.01,
+        "tvlUsd": 122943.44,
+        "volume24hUsd": 93038.86,
+        "feeAprPct": 2.76,
+        "volumeTvl": 0.7568,
+        "depthUsd1Pct": 14380.45,
+        "depthUsd2Pct": 27322.86,
+        "score": 34.43,
+        "explanation": "feeAPR 2.8%; turnover 75.7%/day; depth±1% ~$14,380; stability 25%; 1 active reward; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "bSOL",
+          "JitoSOL"
+        ],
+        "tokenMints": [
+          "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",
+          "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+        ],
+        "tokenDecimals": [
+          9,
+          9
+        ],
+        "spotPrice": 1.01248349,
+        "tickSpacing": 1,
+        "tickCurrentIndex": 124,
+        "sqrtPriceX64": "18561526807216493210",
+        "depthTvl1PctRatio": 0.117,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 0.7567615134455705,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      },
+      {
+        "rank": 10,
+        "poolAddress": "8dxebMPEZjYJvE5JfC9iicZt9pkATBLW1PFgRHi5wGGv",
+        "pool": "mSOL/JitoSOL",
+        "type": "LST-LST",
+        "feeTierPct": 0.01,
+        "tvlUsd": 150705.17,
+        "volume24hUsd": 69621.91,
+        "feeAprPct": 1.69,
+        "volumeTvl": 0.462,
+        "depthUsd1Pct": 15764.64,
+        "depthUsd2Pct": 29952.82,
+        "score": 31.81,
+        "explanation": "feeAPR 1.7%; turnover 46.2%/day; depth±1% ~$15,765; stability 25%; stability history sparse",
+        "validatedOnchain": true,
+        "tokenSymbols": [
+          "mSOL",
+          "JitoSOL"
+        ],
+        "tokenMints": [
+          "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+          "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+        ],
+        "tokenDecimals": [
+          9,
+          9
+        ],
+        "spotPrice": 1.07726452,
+        "tickSpacing": 1,
+        "tickCurrentIndex": 744,
+        "sqrtPriceX64": "19146125512888047212",
+        "depthTvl1PctRatio": 0.1046,
+        "stabilityScore": 0.25,
+        "meanVolTvl7d": 0.46197427573772487,
+        "stdevVolTvl7d": 0,
+        "stabilityNote": "Insufficient/non-positive 7d vol/TVL history; defaulted stability score to 0.25"
+      }
+    ]
+  },
+  "notes": [
+    "Universe includes SOL-stable, SOL-LST, LST-STABLE, LST-LST, and internal STABLE-STABLE pools (LSTs limited to jitoSOL/mSOL/bSOL).",
+    "STABLE-STABLE pools are kept internally for analysis but excluded from topPoolsOverall/UI display.",
+    "Depth values are heuristic approximations until tick-array parsing is implemented."
+  ]
+}

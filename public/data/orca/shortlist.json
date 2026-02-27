@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-02-27T19:02:45.151Z",
+  "regime": "MODERATE",
+  "maxPools": 1,
+  "selected": [
+    {
+      "slot": 1,
+      "poolAddress": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "pool": "SOL/USDC",
+      "type": "SOL-STABLE",
+      "rank": 1,
+      "score": 62.12,
+      "tvlUsd": 26243804.44,
+      "volume24hUsd": 144301413.73,
+      "feeAprPct": 80.28,
+      "depthUsd1Pct": 3188622.24,
+      "depthUsd2Pct": 6058382.25,
+      "depthTvl1PctRatio": 0.1215,
+      "reasons": [
+        {
+          "code": "REGIME_MATCH",
+          "message": "Selected by final score under current regime risk settings (range/hedge/alerts remain regime-aware)."
+        },
+        {
+          "code": "TYPE_TARGET",
+          "message": "Type-neutral shortlist: ranked on feeAPR, volume/TVL, depth, and stability after guardrails."
+        }
+      ]
+    }
+  ],
+  "constraints": {
+    "minDepthTvl1PctRatio": 0.015,
+    "minTvlUsd": 150000,
+    "minVolume24hUsd": 75000
+  },
+  "summary": {
+    "candidatesConsidered": 10,
+    "selectedCount": 1
+  },
+  "notes": [
+    "Shortlist is capped at 2 concurrent pools by design.",
+    "Two top-scoring pools selected under guardrails (type-neutral)."
+  ]
+}

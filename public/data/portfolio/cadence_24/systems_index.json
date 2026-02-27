@@ -1,0 +1,199 @@
+{
+  "updatedAt": "2026-02-27T19:02:45.163Z",
+  "monitorCadenceHours": 24,
+  "systems": [
+    {
+      "id": "sol_hedged",
+      "label": "SOL Hedged Yield System",
+      "score": 0.7227592380952381,
+      "status": "yellow",
+      "netDelta": 2.8047894736842096,
+      "leverage": null,
+      "liqBufferPct": null,
+      "riskFlags": [
+        "MISSING_DATA",
+        "RANGE_EDGE_WARN",
+        "LOW_LIQ_BUFFER"
+      ],
+      "updatedAt": "2026-02-27T19:02:45.163Z",
+      "scoreObj": {
+        "score0to1": 0.7227592380952381,
+        "score0to100": 72,
+        "label": "YELLOW",
+        "reasons": [
+          "MISSING_DATA",
+          "RANGE_EDGE_WARN",
+          "LOW_LIQ_BUFFER"
+        ],
+        "components": {
+          "hedge": 0.3039085714285714,
+          "liquidation": 0.5,
+          "range": 1,
+          "dataQuality": 0.5,
+          "basisRisk": 1
+        }
+      },
+      "health": {
+        "overall": "acceptable",
+        "hedge": "strong",
+        "liquidation": "acceptable",
+        "range": "strong"
+      },
+      "capitalGuard": {
+        "level": "none",
+        "triggers": []
+      },
+      "snapshot": {
+        "systemId": "SOL_HEDGED_YIELD",
+        "asOfTs": "2026-02-27T19:02:45.163Z",
+        "pricesUsed": {
+          "mark": 81.46151629,
+          "baseAsset": "SOL"
+        },
+        "dataFreshness": {
+          "hasMarkPrice": true,
+          "hasLiqPrice": false,
+          "hasRangeBuffer": true
+        },
+        "exposures": {
+          "totalLong": 56.095789473684206,
+          "totalShort": 53.291,
+          "netDelta": 2.8047894736842096,
+          "hedgeRatio": 0.9500000000000001
+        },
+        "liquidation": {
+          "liqPrice": null,
+          "liqBufferRatio": null,
+          "leverage": null
+        },
+        "range": {
+          "rangeLower": 66.765415,
+          "rangeUpper": 96.157617,
+          "rangeBufferRatio": 0.1804
+        },
+        "basisRisk": {
+          "isProxyHedge": false,
+          "basisPenalty": 0,
+          "reasonTag": null
+        },
+        "debugMath": {
+          "markPrice": 81.46151629,
+          "liqBufferRatio": null,
+          "rangeBufferRatio": 0.1804,
+          "hedgeRatio": 0.9500000000000001,
+          "netDelta": 2.8047894736842096,
+          "hedgeScoreInputLeverage": 3,
+          "hedgeScoreInputLiqBufferPct": 0,
+          "hedgeScoreInputFundingApr": 3.504,
+          "hedgeComponent": 0.3039085714285714
+        },
+        "reasons": [
+          "MISSING_DATA",
+          "RANGE_EDGE_WARN",
+          "LOW_LIQ_BUFFER"
+        ]
+      }
+    },
+    {
+      "id": "nx8_hedged",
+      "label": "NX8 Hedged Yield System",
+      "score": 0.6072057142857143,
+      "status": "yellow",
+      "netDelta": 0,
+      "leverage": 2.5,
+      "liqBufferPct": null,
+      "riskFlags": [
+        "PROXY_HEDGE",
+        "MISSING_DATA"
+      ],
+      "updatedAt": "2026-02-27T19:02:45.163Z",
+      "scoreObj": {
+        "score0to1": 0.6072057142857143,
+        "score0to100": 61,
+        "label": "YELLOW",
+        "reasons": [
+          "PROXY_HEDGE",
+          "MISSING_DATA"
+        ],
+        "components": {
+          "hedge": 0.3242857142857143,
+          "liquidation": 0.5,
+          "range": 0.1,
+          "dataQuality": 0,
+          "basisRisk": 0.7
+        }
+      },
+      "health": {
+        "overall": "critical",
+        "hedge": "critical",
+        "liquidation": "acceptable",
+        "range": "acceptable"
+      },
+      "capitalGuard": {
+        "level": "critical",
+        "triggers": [
+          "critical_unhedged",
+          "capital_at_risk"
+        ]
+      },
+      "snapshot": {
+        "systemId": "NX8_HEDGED_YIELD",
+        "asOfTs": "2026-02-27T19:02:45.163Z",
+        "pricesUsed": {
+          "mark": null,
+          "baseAsset": "NX8"
+        },
+        "dataFreshness": {
+          "hasMarkPrice": false,
+          "hasLiqPrice": false,
+          "hasRangeBuffer": false
+        },
+        "exposures": {
+          "totalLong": 0,
+          "totalShort": 0,
+          "netDelta": 0,
+          "hedgeRatio": 0
+        },
+        "liquidation": {
+          "liqPrice": null,
+          "liqBufferRatio": null,
+          "leverage": null
+        },
+        "range": {
+          "rangeLower": null,
+          "rangeUpper": null,
+          "rangeBufferRatio": null
+        },
+        "basisRisk": {
+          "isProxyHedge": true,
+          "basisPenalty": 0,
+          "reasonTag": "PROXY_HEDGE"
+        },
+        "debugMath": {
+          "liqBufferRatio": null,
+          "rangeBufferRatio": null,
+          "hedgeRatio": 0,
+          "netDelta": 0,
+          "hedgeScoreInputLeverage": null,
+          "hedgeScoreInputLiqBufferPct": 0,
+          "hedgeScoreInputFundingApr": 8,
+          "hedgeComponent": 0.3242857142857143
+        },
+        "reasons": [
+          "PROXY_HEDGE",
+          "MISSING_DATA"
+        ]
+      }
+    }
+  ],
+  "healthRollup": {
+    "overall": "critical"
+  },
+  "capitalGuardRollup": {
+    "level": "critical",
+    "triggers": [
+      "capital_at_risk",
+      "critical_unhedged"
+    ]
+  }
+}

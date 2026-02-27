@@ -1,0 +1,88 @@
+{
+  "id": "nx8_hedged",
+  "label": "NX8 Hedged Yield System",
+  "netDelta": 0,
+  "totalLong": 0,
+  "totalShort": 0,
+  "leverage": 2.5,
+  "liqBufferPct": null,
+  "score": 0.6072057142857143,
+  "breakdown": {
+    "delta": 1,
+    "hedge": 0.3242857142857143,
+    "range": 0.1,
+    "stability": 0.9328,
+    "weighted": 0.6072057142857143,
+    "status": "yellow"
+  },
+  "riskFlags": [
+    "PROXY_HEDGE",
+    "MISSING_DATA"
+  ],
+  "canonicalLabel": "YELLOW",
+  "canonicalScore": {
+    "score0to1": 0.6072057142857143,
+    "score0to100": 61,
+    "label": "YELLOW",
+    "reasons": [
+      "PROXY_HEDGE",
+      "MISSING_DATA"
+    ],
+    "components": {
+      "hedge": 0.3242857142857143,
+      "liquidation": 0.5,
+      "range": 0.1,
+      "dataQuality": 0,
+      "basisRisk": 0.7
+    }
+  },
+  "canonicalSnapshot": {
+    "systemId": "NX8_HEDGED_YIELD",
+    "asOfTs": "2026-02-27T19:02:45.163Z",
+    "pricesUsed": {
+      "mark": null,
+      "baseAsset": "NX8"
+    },
+    "dataFreshness": {
+      "hasMarkPrice": false,
+      "hasLiqPrice": false,
+      "hasRangeBuffer": false
+    },
+    "exposures": {
+      "totalLong": 0,
+      "totalShort": 0,
+      "netDelta": 0,
+      "hedgeRatio": 0
+    },
+    "liquidation": {
+      "liqPrice": null,
+      "liqBufferRatio": null,
+      "leverage": null
+    },
+    "range": {
+      "rangeLower": null,
+      "rangeUpper": null,
+      "rangeBufferRatio": null
+    },
+    "basisRisk": {
+      "isProxyHedge": true,
+      "basisPenalty": 0,
+      "reasonTag": "PROXY_HEDGE"
+    },
+    "debugMath": {
+      "liqBufferRatio": null,
+      "rangeBufferRatio": null,
+      "hedgeRatio": 0,
+      "netDelta": 0,
+      "hedgeScoreInputLeverage": null,
+      "hedgeScoreInputLiqBufferPct": 0,
+      "hedgeScoreInputFundingApr": 8,
+      "hedgeComponent": 0.3242857142857143
+    },
+    "reasons": [
+      "PROXY_HEDGE",
+      "MISSING_DATA"
+    ]
+  },
+  "updatedAt": "2026-02-27T19:02:45.163Z"
+}
