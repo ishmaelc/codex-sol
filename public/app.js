@@ -483,7 +483,8 @@ function renderSystemConsoles() {
         liq: dash,
         range: label === "NX8" ? "Managed" : dash,
         basisRisk: dash,
-        action: "No action"
+        action: "No action",
+        dataFlags: dash
       };
     }
     const scoreObj = system?.scoreObj ?? {};

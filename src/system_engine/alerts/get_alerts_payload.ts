@@ -5,6 +5,24 @@ import { buildNx8SystemSnapshot } from "../../portfolio/systems/nx8_system.js";
 import { buildPortfolioIndexSystemEntry } from "../../portfolio/engine.js";
 import { rollupPortfolio } from "../portfolio/rollups.js";
 
+const LIVE_ALERTS_BUILD_TIMEOUT_MS = Math.max(8000, Number(process.env.ALERTS_LIVE_BUILD_TIMEOUT_MS ?? 12000));
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return await new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("LIVE_ALERTS_BUILD_TIMEOUT")), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 export async function getAlertsPayloadForRuntime(args: {
   asOfTs: string;
   wallet?: string | null;
@@ -12,10 +30,13 @@ export async function getAlertsPayloadForRuntime(args: {
 }): Promise<AlertsPayload> {
   if (args.wallet) {
     try {
-      const [solSnapshot, nx8Snapshot] = await Promise.all([
-        buildSolSystemSnapshot({ wallet: args.wallet, apiBaseUrl: args.apiBaseUrl ?? undefined }),
-        buildNx8SystemSnapshot({ wallet: args.wallet, apiBaseUrl: args.apiBaseUrl ?? undefined })
-      ]);
+      const [solSnapshot, nx8Snapshot] = await withTimeout(
+        Promise.all([
+          buildSolSystemSnapshot({ wallet: args.wallet, apiBaseUrl: args.apiBaseUrl ?? undefined }),
+          buildNx8SystemSnapshot({ wallet: args.wallet, apiBaseUrl: args.apiBaseUrl ?? undefined })
+        ]),
+        LIVE_ALERTS_BUILD_TIMEOUT_MS
+      );
       const liveSystems = [solSnapshot, nx8Snapshot].map((snapshot) => buildPortfolioIndexSystemEntry(snapshot));
       const alertsSystems = liveSystems.map((system) => ({
         id: system.id,
