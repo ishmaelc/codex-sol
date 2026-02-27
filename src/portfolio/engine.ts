@@ -115,8 +115,13 @@ export async function runPortfolioEngine(opts: {
       capitalGuard: s.capitalGuard
     }))
   );
+  const snapshotTs = snapshots
+    .map((s) => s.canonicalSnapshot?.asOfTs ?? s.updatedAt)
+    .filter((ts): ts is string => Boolean(ts) && !isNaN(Date.parse(ts)))
+    .sort()
+    .at(-1) ?? new Date().toISOString();
   const indexPayload = {
-    updatedAt: new Date().toISOString(),
+    updatedAt: snapshotTs,
     monitorCadenceHours: cadence,
     systems: systemsEntries,
     healthRollup: rollups.health,
