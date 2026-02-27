@@ -5,3 +5,6 @@
 node_modules/
 dist/
 node_modules
+public/data/orca/
+public/data/portfolio/
+data/orca_pool_stats_history.jsonl
