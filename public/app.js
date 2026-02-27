@@ -446,9 +446,10 @@ function computeWalletHeadlineValues(summary) {
 function renderWalletHeadlines() {
   if (!walletHeadlinesWrap) return;
   const summary = state.positionsSummary.data;
+  const isLoading = state.positionsSummary.status === "loading";
   const values = summary ? computeWalletHeadlineValues(summary) : { totalWalletValueUsd: null, totalClaimableRewardsUsd: null };
-  const totalWallet = values.totalWalletValueUsd == null ? "—" : fmtUsd(values.totalWalletValueUsd);
-  const claimable = values.totalClaimableRewardsUsd == null ? "—" : fmtUsd(values.totalClaimableRewardsUsd);
+  const totalWallet = isLoading ? "Loading..." : values.totalWalletValueUsd == null ? "—" : fmtUsd(values.totalWalletValueUsd);
+  const claimable = isLoading ? "Loading..." : values.totalClaimableRewardsUsd == null ? "—" : fmtUsd(values.totalClaimableRewardsUsd);
   walletHeadlinesWrap.innerHTML = `
     <div class="section-head">
       <h2>Wallet Snapshot</h2>
@@ -1793,6 +1794,9 @@ async function loadAlerts() {
     state.alerts.fetchedAt = Date.now();
     selectedOperatorSystemId = chooseDefaultOperatorSystemId();
     render();
+    if (walletChanged || !state.positionsSummary.data) {
+      void loadPositionsSummaryOnDemand({ background: true });
+    }
   } catch (err) {
     state.alerts.status = "error";
     state.alerts.error = err instanceof Error ? err.message : String(err);
