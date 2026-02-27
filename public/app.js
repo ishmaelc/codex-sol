@@ -20,14 +20,9 @@ const summaryCards = document.getElementById("summaryCards");
 const walletTokensWrap = document.getElementById("walletTokensWrap");
 const rewardsTableWrap = document.getElementById("rewardsTableWrap");
 const rawJson = document.getElementById("rawJson");
-const tabOverview = document.getElementById("tabOverview");
-const tabHedge = document.getElementById("tabHedge");
 const overviewView = document.getElementById("overviewView");
-const hedgeView = document.getElementById("hedgeView");
-const hedgeTableWrap = document.getElementById("hedgeTableWrap");
-const hedgeQuickWrap = document.getElementById("hedgeQuickWrap");
-const tabsWrap = document.querySelector(".tabs");
-const hedgeQuickCard = document.querySelector(".hedge-quick-card");
+const dataStatusPill = document.getElementById("dataStatusPill");
+const degradedBanner = document.getElementById("degradedBanner");
 const walletTokensCard = walletTokensWrap?.closest("section.card");
 const rewardsCard = rewardsTableWrap?.closest("section.card");
 const rawSummaryCard = rawJson?.closest("section.card");
@@ -41,25 +36,13 @@ const ORCA_POOLS_URL = "/data/orca/pool_rankings.json";
 const DEFAULT_WALLET = "4ogWhtiSEAaXZCDD9BPAnRa2DY18pxvF9RbiUUdRJSvr";
 walletInput.value = DEFAULT_WALLET;
 
-let currentTab = "overview";
 let latestWallet = "";
 let latestSummary = null;
-let latestFullPositions = null;
 let latestPortfolioSystems = null;
-let fullPositionsLoadPromise = null;
 let operatorModeEnabled = false;
 let currentMainTab = "portfolio";
 let latestOrcaData = null;
 let latestAlertsPayload = null;
-
-const HEDGE_LINKS = [
-  { strategyLabel: "NX8-USDC vs WBTC Short", lpPair: "NX8-USDC", perpSymbol: "WBTC" },
-  { strategyLabel: "SOL-USDG vs SOL Short", lpPair: "SOL-USDG", perpSymbol: "SOL" }
-];
-const BETA_OVERRIDES = {
-  "NX8-USDC vs WBTC Short": 1.0,
-  "SOL-USDG vs SOL Short": 1.0
-};
 
 function loadOperatorModeState() {
   try {
@@ -158,211 +141,6 @@ function deriveLendPairLabel(ob) {
   if (supply) return `${supply}/-`;
   if (borrow) return `-/${borrow}`;
   return String(ob?.market ?? "Unknown Pair");
-}
-
-function hedgeSignal(driftPct, hedgeRatio) {
-  if (!Number.isFinite(driftPct) || !Number.isFinite(hedgeRatio)) {
-    return { label: "n/a", className: "" };
-  }
-  const absDrift = Math.abs(driftPct);
-  const ratioOff = Math.abs(1 - hedgeRatio);
-  if (absDrift <= 10 && ratioOff <= 0.1) return { label: "OK", className: "pnl-pos" };
-  if (absDrift <= 20 && ratioOff <= 0.2) return { label: "Watch", className: "pnl-warn" };
-  return { label: "Rebalance", className: "pnl-neg" };
-}
-
-function hedgeActionText(adjustmentUsd, signalLabel) {
-  if (!Number.isFinite(adjustmentUsd)) return "n/a";
-  if (signalLabel === "OK") return "No change";
-  if (signalLabel === "Watch") {
-    if (Math.abs(adjustmentUsd) < 10) return "Optional rebalance";
-    return adjustmentUsd < 0 ? `Watch: increase short ${fmtUsd(Math.abs(adjustmentUsd))}` : `Watch: decrease short ${fmtUsd(Math.abs(adjustmentUsd))}`;
-  }
-  if (Math.abs(adjustmentUsd) < 10) return "Rebalance (small)";
-  if (adjustmentUsd < 0) return `Increase short by ${fmtUsd(Math.abs(adjustmentUsd))}`;
-  return `Decrease short by ${fmtUsd(Math.abs(adjustmentUsd))}`;
-}
-
-function computeHedgeRows(summary, fullPositions) {
-  const strategyValuations = summary?.kaminoLiquidity?.strategyValuations ?? [];
-  const valuationByPair = new Map(strategyValuations.map((v) => [String(v?.pairLabel || "").toUpperCase(), v]));
-  const orcaPositions = summary?.orcaWhirlpools?.positions ?? [];
-  const leverageElement = (fullPositions?.jupiterPerps?.data?.raw?.elements ?? []).find((e) => e?.type === "leverage");
-  const perpsPositions = leverageElement?.data?.isolated?.positions ?? [];
-
-  const perpsBySymbol = new Map();
-  for (const p of perpsPositions) {
-    const symbol = inferPerpSymbol(String(p?.address || ""));
-    const side = String(p?.side || "").toLowerCase();
-    const notional = Math.abs(Number(p?.sizeValue || 0));
-    const deltaUsd = side === "short" ? -notional : notional;
-    const prev = perpsBySymbol.get(symbol) ?? { notionalUsd: 0, deltaUsd: 0, side };
-    prev.notionalUsd += notional;
-    prev.deltaUsd += deltaUsd;
-    prev.side = side || prev.side;
-    perpsBySymbol.set(symbol, prev);
-  }
-
-  function estimateLpVolatileDeltaUsd(valuation) {
-    const a = String(valuation?.tokenASymbol || "").toUpperCase();
-    const b = String(valuation?.tokenBSymbol || "").toUpperCase();
-    const stable = new Set(["USDC", "USDG", "USDS"]);
-    const tokenAValueExact = Number(valuation?.tokenAValueUsdFarmsStaked ?? NaN);
-    const tokenBValueExact = Number(valuation?.tokenBValueUsdFarmsStaked ?? NaN);
-    if (stable.has(a) && !stable.has(b) && Number.isFinite(tokenBValueExact)) return { token: b, deltaUsd: tokenBValueExact, method: "exact" };
-    if (stable.has(b) && !stable.has(a) && Number.isFinite(tokenAValueExact)) return { token: a, deltaUsd: tokenAValueExact, method: "exact" };
-    const pairValue = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? 0);
-    const est = pairValue * 0.5;
-    if (stable.has(a) && !stable.has(b)) return { token: b, deltaUsd: est, method: "fallback-50" };
-    if (stable.has(b) && !stable.has(a)) return { token: a, deltaUsd: est, method: "fallback-50" };
-    return { token: a || b || "unknown", deltaUsd: est, method: "fallback-50" };
-  }
-
-  function estimateOrcaVolatileDeltaUsd(position) {
-    const a = String(position?.tokenA || "").toUpperCase();
-    const b = String(position?.tokenB || "").toUpperCase();
-    const stable = new Set(["USDC", "USDG", "USDS", "USDT", "AUSD"]);
-    const amountA = Number(position?.amountAEstUi ?? NaN);
-    const amountB = Number(position?.amountBEstUi ?? NaN);
-    const priceBPerA = Number(position?.currentPriceOrcaApi ?? position?.currentPrice ?? NaN);
-    const valueUsd = Number(position?.valueEstUsd ?? NaN);
-
-    if (stable.has(a) && !stable.has(b)) {
-      if (Number.isFinite(amountB) && Number.isFinite(priceBPerA) && priceBPerA > 0) {
-        return { token: b, deltaUsd: amountB / priceBPerA, method: "orca-exact" };
-      }
-      return { token: b, deltaUsd: Number.isFinite(valueUsd) ? valueUsd * 0.5 : NaN, method: "orca-fallback-50" };
-    }
-
-    if (stable.has(b) && !stable.has(a)) {
-      if (Number.isFinite(amountA) && Number.isFinite(priceBPerA) && priceBPerA > 0) {
-        return { token: a, deltaUsd: amountA * priceBPerA, method: "orca-exact" };
-      }
-      return { token: a, deltaUsd: Number.isFinite(valueUsd) ? valueUsd * 0.5 : NaN, method: "orca-fallback-50" };
-    }
-
-    return { token: a || b || "unknown", deltaUsd: Number.isFinite(valueUsd) ? valueUsd * 0.5 : NaN, method: "orca-fallback-50" };
-  }
-
-  const orcaExposureByToken = new Map();
-  for (const p of orcaPositions) {
-    const est = estimateOrcaVolatileDeltaUsd(p);
-    const token = String(est.token || "").toUpperCase();
-    if (!token || !Number.isFinite(est.deltaUsd)) continue;
-    const prev = orcaExposureByToken.get(token) ?? { deltaUsd: 0, valueUsd: 0, rows: [] };
-    prev.deltaUsd += est.deltaUsd;
-    prev.valueUsd += Number.isFinite(Number(p?.valueEstUsd)) ? Number(p.valueEstUsd) : 0;
-    prev.rows.push({
-      pair: String(p?.pair || "unknown"),
-      valueUsd: Number(p?.valueEstUsd ?? NaN),
-      deltaUsd: est.deltaUsd,
-      method: est.method
-    });
-    orcaExposureByToken.set(token, prev);
-  }
-
-  return HEDGE_LINKS.map((link) => {
-    const valuation = valuationByPair.get(link.lpPair.toUpperCase());
-    const lpValueUsd = Number(valuation?.valueUsdFarmsStaked ?? valuation?.valueUsd ?? NaN);
-    const lpDelta = valuation ? estimateLpVolatileDeltaUsd(valuation) : { token: "n/a", deltaUsd: NaN };
-    const orcaExposure = orcaExposureByToken.get(String(link.perpSymbol || "").toUpperCase()) ?? null;
-    const orcaDeltaUsd = orcaExposure ? Number(orcaExposure.deltaUsd ?? NaN) : NaN;
-    const orcaValueUsd = orcaExposure ? Number(orcaExposure.valueUsd ?? NaN) : NaN;
-    const combinedLpValueUsd =
-      (Number.isFinite(lpValueUsd) ? lpValueUsd : 0) + (Number.isFinite(orcaValueUsd) ? orcaValueUsd : 0);
-    const combinedLpDeltaUsd =
-      (Number.isFinite(lpDelta.deltaUsd) ? lpDelta.deltaUsd : 0) + (Number.isFinite(orcaDeltaUsd) ? orcaDeltaUsd : 0);
-    const beta = Number(BETA_OVERRIDES[link.strategyLabel] ?? 1);
-    const betaAdjustedLpDeltaUsd = Number.isFinite(combinedLpDeltaUsd) ? combinedLpDeltaUsd * beta : NaN;
-    const perp = perpsBySymbol.get(link.perpSymbol) ?? { notionalUsd: NaN, deltaUsd: NaN, side: "n/a" };
-    const targetPerpDeltaUsd = Number.isFinite(betaAdjustedLpDeltaUsd) ? -betaAdjustedLpDeltaUsd : NaN;
-    const adjustmentUsd = Number.isFinite(targetPerpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? targetPerpDeltaUsd - perp.deltaUsd : NaN;
-    const netDeltaUsd =
-      Number.isFinite(betaAdjustedLpDeltaUsd) && Number.isFinite(perp.deltaUsd) ? betaAdjustedLpDeltaUsd + perp.deltaUsd : NaN;
-    const hedgeRatio =
-      Number.isFinite(betaAdjustedLpDeltaUsd) && betaAdjustedLpDeltaUsd > 0 && Number.isFinite(perp.deltaUsd)
-        ? Math.abs(perp.deltaUsd) / betaAdjustedLpDeltaUsd
-        : NaN;
-    const driftPct =
-      Number.isFinite(betaAdjustedLpDeltaUsd) && betaAdjustedLpDeltaUsd > 0 && Number.isFinite(netDeltaUsd)
-        ? (netDeltaUsd / betaAdjustedLpDeltaUsd) * 100
-        : NaN;
-
-    return {
-      ...link,
-      lpToken: lpDelta.token,
-      lpDeltaMethod: lpDelta.method,
-      orcaValueUsd,
-      orcaDeltaUsd,
-      orcaExposureRows: orcaExposure?.rows ?? [],
-      beta,
-      lpValueUsd: Number.isFinite(combinedLpValueUsd) ? combinedLpValueUsd : lpValueUsd,
-      lpDeltaUsd: Number.isFinite(combinedLpDeltaUsd) ? combinedLpDeltaUsd : lpDelta.deltaUsd,
-      betaAdjustedLpDeltaUsd,
-      perpSide: perp.side,
-      perpNotionalUsd: perp.notionalUsd,
-      perpDeltaUsd: perp.deltaUsd,
-      targetPerpDeltaUsd,
-      adjustmentUsd,
-      netDeltaUsd,
-      hedgeRatio,
-      driftPct
-    };
-  });
-}
-
-function renderHedgeQuick(summary, fullPositions) {
-  if (!hedgeQuickWrap) return;
-  const rows = computeHedgeRows(summary, fullPositions);
-  if (!rows.length) {
-    hedgeQuickWrap.innerHTML = `<div class="rewards-empty">No hedge strategies found.</div>`;
-    return;
-  }
-  const signals = rows.map((row) => hedgeSignal(row.driftPct, row.hedgeRatio));
-  const allOk = signals.every((signal) => signal.label === "OK");
-  hedgeQuickWrap.innerHTML = `
-    <details ${allOk ? "" : "open"}>
-      <summary><strong>Hedge Drift:</strong> ${allOk ? "OK" : "Attention required"}</summary>
-      <table class="summary-table hedge-quick-table" style="margin-top:10px;">
-        <thead>
-          <tr>
-            <th>Strategy</th>
-            <th>Drift</th>
-            <th>Rebalance Signal</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows
-            .map((row, idx) => {
-              const signal = signals[idx];
-              const driftClass = Number.isFinite(row.driftPct) ? (Math.abs(row.driftPct) <= 10 ? "pnl-pos" : "pnl-neg") : "";
-              return `
-                <tr>
-                  <td>${row.strategyLabel}</td>
-                  <td class="${driftClass}">${fmtPct(row.driftPct)}</td>
-                  <td class="${signal.className}">${signal.label}</td>
-                </tr>
-              `;
-            })
-            .join("")}
-        </tbody>
-      </table>
-    </details>
-  `;
-}
-
-function setTab(tab) {
-  currentTab = tab;
-  const showOverview = tab === "overview";
-  const showHedge = tab === "hedge";
-  overviewView.classList.toggle("hidden", !showOverview);
-  hedgeView.classList.toggle("hidden", !showHedge);
-  tabOverview.classList.toggle("is-active", showOverview);
-  tabHedge.classList.toggle("is-active", showHedge);
-
-  if (showHedge) {
-    void ensureFullPositionsLoaded();
-  }
 }
 
 function setMainTab(tab, options = {}) {
@@ -544,8 +322,21 @@ function renderSystemConsoles() {
     const exposures = snapshot?.exposures ?? {};
     const liq = snapshot?.liquidation ?? {};
     const range = snapshot?.range ?? {};
+    const freshness = snapshot?.dataFreshness ?? {};
+    const snapshotReasons = Array.isArray(snapshot?.reasons) ? snapshot.reasons : [];
     const guardTriggers = Array.isArray(system?.capitalGuard?.triggers) ? system.capitalGuard.triggers : [];
-    const actionText = guardTriggers.length ? String(guardTriggers[0]) : "No action";
+    const hasMark = freshness?.hasMarkPrice === true;
+    const hasLiq = freshness?.hasLiqPrice === true && liq?.liqBufferRatio != null;
+    const hasRange = freshness?.hasRangeBuffer === true && range?.rangeBufferRatio != null;
+    const netDeltaText = hasMark
+      ? (Number.isFinite(Number(exposures?.netDelta)) ? Number(exposures.netDelta).toFixed(4) : Number.isFinite(Number(exposures?.netSOLDelta)) ? Number(exposures.netSOLDelta).toFixed(4) : "N/A")
+      : "N/A";
+    const hedgeText = hasMark && Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(2)}%` : "N/A";
+    const liqText = hasLiq ? `${(Number(liq.liqBufferRatio) * 100).toFixed(2)}%` : "N/A";
+    const rangeText = hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(2)}%` : "N/A";
+    const hasMissingData = snapshotReasons.includes("MISSING_DATA");
+    const actionText = hasMissingData ? "MISSING_DATA" : guardTriggers.length ? String(guardTriggers[0]) : "No action";
+    const showOperatorLink = hasMissingData || guardTriggers.length > 0;
     return `
       <div class="stat">
         <h3>${label} System Console</h3>
@@ -555,17 +346,17 @@ function renderSystemConsoles() {
               <td>Health Score</td>
               <td>${Number.isFinite(Number(scoreObj?.score0to100)) ? Number(scoreObj.score0to100).toFixed(0) : "N/A"}</td>
               <td>Net Delta/Exposure</td>
-              <td>${Number.isFinite(Number(exposures?.netDelta)) ? Number(exposures.netDelta).toFixed(4) : Number.isFinite(Number(exposures?.netSOLDelta)) ? Number(exposures.netSOLDelta).toFixed(4) : "N/A"}</td>
+              <td>${netDeltaText}</td>
               <td>Hedge %</td>
-              <td>${Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(2)}%` : "N/A"}</td>
+              <td>${hedgeText}</td>
             </tr>
             <tr>
               <td>Liq Buffer %</td>
-              <td>${Number.isFinite(Number(liq?.liqBufferRatio)) ? `${(Number(liq.liqBufferRatio) * 100).toFixed(2)}%` : "N/A"}</td>
+              <td>${liqText}</td>
               <td>Range Buffer %</td>
-              <td>${Number.isFinite(Number(range?.rangeBufferRatio)) ? `${(Number(range.rangeBufferRatio) * 100).toFixed(2)}%` : "N/A"}</td>
+              <td>${rangeText}</td>
               <td>Recommended Action</td>
-              <td>${escapeHtml(actionText)} ${guardTriggers.length ? `<a href="#operator" data-open-operator-inline="1">View Operator</a>` : ""}</td>
+              <td>${escapeHtml(actionText)} ${showOperatorLink ? `<a href="#operator" data-open-operator-inline="1">View Operator</a>` : ""}</td>
             </tr>
           </tbody>
         </table>
@@ -695,44 +486,6 @@ function renderOperatorPanel(summary) {
   bindCopy("copyOperatorSummaryBtn", "summary");
 }
 // OPERATOR_ACTION_PANEL_END
-
-async function ensureFullPositionsLoaded() {
-  const wallet = latestWallet || walletInput.value.trim();
-  if (!wallet) return null;
-  if (latestFullPositions && latestWallet === wallet) {
-    return latestFullPositions;
-  }
-  if (fullPositionsLoadPromise) {
-    return fullPositionsLoadPromise;
-  }
-
-  fullPositionsLoadPromise = (async () => {
-    const fullRes = await fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`);
-    if (!fullRes.ok) {
-      const body = await fullRes.json().catch(() => ({}));
-      throw new Error(body.error || `Full positions request failed (${fullRes.status})`);
-    }
-    const fullPositions = await fullRes.json();
-    if (latestWallet === wallet) {
-      latestFullPositions = fullPositions;
-      if (latestSummary) {
-        render(latestSummary, latestFullPositions);
-      }
-    }
-    return fullPositions;
-  })();
-
-  try {
-    return await fullPositionsLoadPromise;
-  } catch (err) {
-    if (currentTab === "hedge") {
-      statusEl.textContent = err instanceof Error ? err.message : String(err);
-    }
-    return null;
-  } finally {
-    fullPositionsLoadPromise = null;
-  }
-}
 
 function applyOperatorMode() {
   if (operatorModeEnabled) {
@@ -947,61 +700,6 @@ function renderRollingBorrowApyChart(obligations) {
   `;
 }
 
-function renderHedge(summary, fullPositions) {
-  const rows = computeHedgeRows(summary, fullPositions);
-
-  hedgeTableWrap.innerHTML = `
-    <table class="summary-table">
-      <thead>
-        <tr>
-          <th>Strategy</th>
-          <th>LP Value</th>
-          <th>Beta</th>
-          <th>Beta-Adj LP Delta</th>
-          <th>Perp Leg</th>
-          <th>Perp Delta</th>
-          <th>Target Perp</th>
-          <th>Rebalance Needed</th>
-          <th>Net Delta</th>
-          <th>Drift</th>
-          <th>Rebalance Signal</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows
-          .map((row) => {
-            const driftClass = Number.isFinite(row.driftPct) ? (Math.abs(row.driftPct) <= 10 ? "pnl-pos" : "pnl-neg") : "";
-            const netClass = Number.isFinite(row.netDeltaUsd) ? (row.netDeltaUsd >= 0 ? "pnl-neg" : "pnl-pos") : "";
-            const signal = hedgeSignal(row.driftPct, row.hedgeRatio);
-            return `
-              <tr>
-                <td>${row.strategyLabel}</td>
-                <td>${fmtUsd(row.lpValueUsd)}</td>
-                <td>${Number.isFinite(row.beta) ? row.beta.toFixed(2) : "n/a"}x</td>
-                <td>${fmtUsd(row.betaAdjustedLpDeltaUsd)} (${row.lpToken}${row.lpDeltaMethod === "fallback-50" ? ", est." : ""})</td>
-                <td>${row.perpSymbol} ${row.perpSide || ""} (${fmtUsd(row.perpNotionalUsd)})</td>
-                <td>${fmtUsd(row.perpDeltaUsd)}</td>
-                <td>${fmtUsd(row.targetPerpDeltaUsd)}</td>
-                <td>${hedgeActionText(row.adjustmentUsd, signal.label)}</td>
-                <td class="${netClass}">${fmtUsd(row.netDeltaUsd)}</td>
-                <td class="${driftClass}">${fmtPct(row.driftPct)} | ratio ${Number.isFinite(row.hedgeRatio) ? row.hedgeRatio.toFixed(2) : "n/a"}x</td>
-                <td class="${signal.className}">${signal.label}</td>
-              </tr>
-            `;
-          })
-          .join("")}
-      </tbody>
-    </table>
-    <div class="table-note">
-      <div>How to rebalance:</div>
-      <div>1. Set beta per strategy in <code>BETA_OVERRIDES</code> (use <code>1.0</code> if unsure).</div>
-      <div>2. Use <code>Target Perp</code> as your desired perp delta, and <code>Rebalance Needed</code> for the trade size.</div>
-      <div>3. Aim for hedge ratio near <code>1.00x</code> and drift near <code>0%</code>; above ~20% drift usually warrants a rebalance.</div>
-      <div>LP delta uses exact non-stable leg USD from Kamino share holdings when available; 50% is only a fallback.</div>
-    </div>
-  `;
-}
-
 function renderPortfolioSystemsInline() {
   const systems = Array.isArray(latestPortfolioSystems?.systems) ? latestPortfolioSystems.systems : [];
   if (!systems.length) return `<div class="table-note">Portfolio systems: unavailable.</div>`;
@@ -1014,8 +712,38 @@ function renderPortfolioSystemsInline() {
     .join(" | ")}</div>`;
 }
 
+// DEGRADED_STATUS_START
+function renderMetaStatus(summary) {
+  if (!dataStatusPill || !degradedBanner) return;
+  const meta = summary?.meta ?? null;
+  const degraded = Boolean(meta?.degraded);
+  if (!degraded) {
+    dataStatusPill.textContent = "LIVE";
+    degradedBanner.classList.add("hidden");
+    degradedBanner.innerHTML = "";
+    return;
+  }
+
+  const fallbackSource = String(meta?.fallbackSource ?? "unknown");
+  const errorCode = String(meta?.errorCode ?? "ERROR");
+  const reasons = Array.isArray(meta?.reasons) ? meta.reasons : [];
+  dataStatusPill.textContent = "DEGRADED (cached)";
+  degradedBanner.classList.remove("hidden");
+  degradedBanner.innerHTML = `
+    <div class="table-note">
+      Using cached systems index (${escapeHtml(errorCode)}). Some wallet-specific data may be missing.
+      <details style="margin-top:6px;">
+        <summary>Details</summary>
+        <div>fallback: ${escapeHtml(fallbackSource)} | ${escapeHtml(errorCode)}</div>
+        ${reasons.length ? `<ul>${reasons.map((reason) => `<li>${escapeHtml(String(reason))}</li>`).join("")}</ul>` : ""}
+      </details>
+    </div>
+  `;
+}
+// DEGRADED_STATUS_END
+
 function render(summary, fullPositions) {
-  renderHedgeQuick(summary, fullPositions);
+  renderMetaStatus(summary);
   renderAttentionStrip();
   renderSystemConsoles();
   const perpsPnl = Number(summary?.jupiterPerps?.summary?.pnlUsd ?? 0);
@@ -1726,7 +1454,6 @@ function render(summary, fullPositions) {
 
   rawJson.textContent = JSON.stringify(summary, null, 2);
   renderOperatorPanel(summary);
-  renderHedge(summary, fullPositions);
 }
 
 async function loadSummary() {
@@ -1741,10 +1468,7 @@ async function loadSummary() {
   const walletChanged = latestWallet !== wallet;
   latestWallet = wallet;
   latestSummary = null;
-  if (walletChanged) {
-    latestFullPositions = null;
-    fullPositionsLoadPromise = null;
-  }
+  if (walletChanged) latestAlertsPayload = null;
 
   try {
     const [summaryRes, portfolioRes, alertsRes] = await Promise.all([
@@ -1768,14 +1492,8 @@ async function loadSummary() {
       latestAlertsPayload = null;
     }
 
-    render(summary, latestFullPositions);
+    render(summary, null);
     statusEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
-
-    if (currentTab === "hedge") {
-      await ensureFullPositionsLoaded();
-    } else {
-      void ensureFullPositionsLoaded();
-    }
   } catch (err) {
     statusEl.textContent = err instanceof Error ? err.message : String(err);
   } finally {
@@ -1787,8 +1505,6 @@ loadBtn.addEventListener("click", loadSummary);
 walletInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") loadSummary();
 });
-tabOverview.addEventListener("click", () => setTab("overview"));
-tabHedge.addEventListener("click", () => setTab("hedge"));
 tabPortfolioMain?.addEventListener("click", () => setMainTab("portfolio"));
 tabOrcaMain?.addEventListener("click", () => setMainTab("orca"));
 tabOperatorMain?.addEventListener("click", () => setMainTab("operator"));
@@ -1805,12 +1521,11 @@ operatorModeToggle?.addEventListener("change", () => {
   operatorModeEnabled = Boolean(operatorModeToggle.checked);
   persistOperatorModeState(operatorModeEnabled);
   applyOperatorMode();
-  if (latestSummary) render(latestSummary, latestFullPositions);
+  if (latestSummary) render(latestSummary, null);
 });
 operatorModeEnabled = loadOperatorModeState();
 if (operatorModeToggle) operatorModeToggle.checked = operatorModeEnabled;
 applyOperatorMode();
-setTab(currentTab);
 window.addEventListener("hashchange", () => {
   const hashTab = String(window.location.hash || "").replace(/^#/, "").toLowerCase();
   if (hashTab === "portfolio" || hashTab === "orca" || hashTab === "operator") {

@@ -33,12 +33,16 @@
       <section class="controls card">
         <div class="controls-head">
           <label for="walletInput">Wallet</label>
-          <span id="status" class="status-pill">Idle</span>
+          <div class="toggle-row">
+            <span id="status" class="status-pill">Idle</span>
+            <span id="dataStatusPill" class="status-pill">LIVE</span>
+          </div>
         </div>
         <div class="control-row">
           <input id="walletInput" type="text" placeholder="Enter Solana wallet address" />
           <button id="loadBtn">Load</button>
         </div>
+        <div id="degradedBanner" class="hidden"></div>
         <div class="meta-row">
           <div class="toggle-row">
             <label class="inline-toggle"><input type="checkbox" id="operatorModeToggle" /> Operator Mode</label>
@@ -54,22 +58,9 @@
       </section>
 
       <section id="tab-portfolio">
-      <section class="tabs card">
-        <button id="tabOverview" class="tab-btn is-active" type="button">Overview</button>
-        <button id="tabHedge" class="tab-btn" type="button">Hedge Drift</button>
-      </section>
-
       <div id="overviewView">
         <section class="card" id="attentionStripWrap"></section>
         <section class="card" id="systemConsolesWrap"></section>
-
-        <section class="card hedge-quick-card">
-          <div class="section-head">
-            <h2>Hedge Drift Snapshot</h2>
-            <span class="section-subtle">Strategy / Drift / Signal</span>
-          </div>
-          <div id="hedgeQuickWrap" class="rewards-wrap"></div>
-        </section>
 
         <section class="card" id="orcaSnapshotWrap"></section>
 
@@ -91,13 +82,6 @@
         </section>
       </div>
 
-      <div id="hedgeView" class="hidden">
-        <section class="card">
-          <h2>Hedge Strategy Monitor</h2>
-          <p class="table-note">Tracks LP strategy value against mapped Jupiter perps legs so you can spot hedge drift quickly.</p>
-          <div id="hedgeTableWrap" class="rewards-wrap"></div>
-        </section>
-      </div>
       </section>
 
       <section id="tab-orca" class="hidden">

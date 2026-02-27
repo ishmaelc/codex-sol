@@ -255,6 +255,14 @@ button:hover {
   text-align: right;
 }
 
+#degradedBanner {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 180, 120, 0.35);
+  border-radius: 12px;
+  background: rgba(70, 38, 20, 0.25);
+  padding: 10px 12px;
+}
+
 .grid-cards {
   margin-top: 16px;
   display: block;
