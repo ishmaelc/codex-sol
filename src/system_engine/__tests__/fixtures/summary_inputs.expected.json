@@ -3,9 +3,9 @@
   "solShort": 2,
   "markPrice": 150,
   "liqPrice": 200,
-  "rangeLower": 120,
-  "rangeUpper": 170,
-  "rangeBufferRatio": 0.05,
+  "rangeLower": 80,
+  "rangeUpper": 90,
+  "rangeBufferRatio": 0,
   "reasons": [
     "MISSING_DATA"
   ]

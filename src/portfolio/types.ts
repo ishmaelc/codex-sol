@@ -1,4 +1,6 @@
 import type { SystemLabel, SystemScore } from "../system_engine/types.js";
+import type { HealthResult } from "../system_engine/health/compute_health.js";
+import type { CapitalGuardResult } from "../system_engine/capital_guard/compute_capital_guard.js";
 
 export type ExposureLeg = {
   source: string;
@@ -59,6 +61,8 @@ export type HedgedSystemSnapshot = {
   hedge?: HedgeLeg;
   canonicalLabel?: SystemLabel;
   canonicalScore?: SystemScore;
+  health?: HealthResult;
+  capitalGuard?: CapitalGuardResult;
   canonicalSnapshot?: CanonicalSystemSnapshot;
   updatedAt: string;
 };

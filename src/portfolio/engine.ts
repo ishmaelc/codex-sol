@@ -6,6 +6,9 @@ import { solSystemDefinition } from "./systems/sol_system.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot } from "./types.js";
 import { scoreFromPortfolioScore } from "../system_engine/score_adapter.js";
 import { normalizeSnapshot } from "../system_engine/invariants.js";
+import { computeSystemHealth } from "../system_engine/health/compute_health.js";
+import { computeCapitalGuard } from "../system_engine/capital_guard/compute_capital_guard.js";
+import { rollupPortfolio } from "../system_engine/portfolio/rollups.js";
 
 const systems: HedgedSystemDefinition[] = [solSystemDefinition, nx8SystemDefinition];
 
@@ -20,6 +23,8 @@ export function buildPortfolioIndexSystemEntry(s: HedgedSystemSnapshot): {
   riskFlags: HedgedSystemSnapshot["riskFlags"];
   updatedAt: string;
   scoreObj: ReturnType<typeof scoreFromPortfolioScore>;
+  health: NonNullable<HedgedSystemSnapshot["health"]> | null;
+  capitalGuard: NonNullable<HedgedSystemSnapshot["capitalGuard"]> | null;
   snapshot: HedgedSystemSnapshot["canonicalSnapshot"] | null;
 } {
   const normalizedSnapshot = s.canonicalSnapshot ? normalizeSnapshot(s.canonicalSnapshot) : null;
@@ -34,6 +39,8 @@ export function buildPortfolioIndexSystemEntry(s: HedgedSystemSnapshot): {
     }
   });
   const scoreObj = s.canonicalScore ?? computedScore;
+  const health = s.health ?? (normalizedSnapshot ? computeSystemHealth(normalizedSnapshot) : null);
+  const capitalGuard = s.capitalGuard ?? (normalizedSnapshot && health ? computeCapitalGuard(normalizedSnapshot, health) : null);
   return {
     id: s.id,
     label: s.label,
@@ -45,6 +52,8 @@ export function buildPortfolioIndexSystemEntry(s: HedgedSystemSnapshot): {
     riskFlags: s.riskFlags,
     updatedAt: s.updatedAt,
     scoreObj,
+    health,
+    capitalGuard,
     snapshot: normalizedSnapshot
   };
 }
@@ -98,10 +107,20 @@ export async function runPortfolioEngine(opts: {
   }
 
   const indexPath = path.join(outRoot, "systems_index.json");
+  const systemsEntries = snapshots.map((s) => buildPortfolioIndexSystemEntry(s));
+  const rollups = rollupPortfolio(
+    systemsEntries.map((s) => ({
+      id: s.id,
+      health: s.health,
+      capitalGuard: s.capitalGuard
+    }))
+  );
   const indexPayload = {
     updatedAt: new Date().toISOString(),
     monitorCadenceHours: cadence,
-    systems: snapshots.map((s) => buildPortfolioIndexSystemEntry(s))
+    systems: systemsEntries,
+    healthRollup: rollups.health,
+    capitalGuardRollup: rollups.capitalGuard
   };
   await fs.mkdir(path.dirname(indexPath), { recursive: true });
   await fs.writeFile(indexPath, `${JSON.stringify(indexPayload, null, 2)}\n`, "utf8");

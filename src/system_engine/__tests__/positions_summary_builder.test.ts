@@ -37,8 +37,31 @@ test("summary builder contract lock", () => {
   assert.ok(actual.rangeBufferRatio != null && actual.rangeBufferRatio >= 0 && actual.rangeBufferRatio <= 1);
 });
 
+test("debug mode does not change summary builder output", () => {
+  const payload = readJsonFixture<PositionsPayloadLike>("positions_full.fixture.json");
+  const normal = buildPositionsSummaryInputs(payload, { debug: false });
+  const debug = buildPositionsSummaryInputs(payload, { debug: true });
+  assert.deepEqual(debug, normal);
+});
+
 test("range buffer ratio is clamped to [0,1]", () => {
   const payload: PositionsPayloadLike = {
+    jupiterPerps: {
+      data: {
+        raw: {
+          elements: [
+            {
+              type: "leverage",
+              data: {
+                isolated: {
+                  positions: [{ address: "So11111111111111111111111111111111111111112", side: "short", size: 1, markPrice: 150 }]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
     orcaWhirlpools: {
       positions: [
         { distanceToLowerPctFromCurrent: 250, distanceToUpperPctFromCurrent: 260, rangeLower: 100, rangeUpper: 110 },
@@ -47,7 +70,114 @@ test("range buffer ratio is clamped to [0,1]", () => {
     }
   };
   const summary = buildPositionsSummaryInputs(payload);
-  assert.equal(summary.rangeBufferRatio, 1);
+  assert.ok(summary.rangeBufferRatio != null);
+  assert.ok(summary.rangeBufferRatio != null && summary.rangeBufferRatio >= 0 && summary.rangeBufferRatio <= 1);
+});
+
+test("in-range position with negative distance field yields positive price-based range buffer", () => {
+  const payload: PositionsPayloadLike = {
+    jupiterPerps: {
+      data: {
+        raw: {
+          elements: [
+            {
+              type: "leverage",
+              data: {
+                isolated: {
+                  positions: [{ address: "So11111111111111111111111111111111111111112", side: "short", size: 1, markPrice: 150 }]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    orcaWhirlpools: {
+      positions: [
+        {
+          rangeLower: 120,
+          rangeUpper: 180,
+          distanceToLowerPctFromCurrent: -25,
+          distanceToUpperPctFromCurrent: 20
+        }
+      ]
+    }
+  };
+
+  const summary = buildPositionsSummaryInputs(payload);
+  const width = 180 - 120;
+  const dLower = 150 - 120;
+  const dUpper = 180 - 150;
+  const expected = Math.min(dLower, dUpper) / width;
+
+  assert.ok(summary.rangeBufferRatio != null && summary.rangeBufferRatio > 0);
+  assert.ok(summary.rangeBufferRatio != null && Math.abs(summary.rangeBufferRatio - expected) <= 1e-12);
+});
+
+function mkRangePayload(markPrice: number, rangeLower: number, rangeUpper: number): PositionsPayloadLike {
+  return {
+    jupiterPerps: {
+      data: {
+        raw: {
+          elements: [
+            {
+              type: "leverage",
+              data: {
+                isolated: {
+                  positions: [{ address: "So11111111111111111111111111111111111111112", side: "short", size: 1, markPrice }]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    orcaWhirlpools: {
+      positions: [
+        {
+          rangeLower,
+          rangeUpper,
+          distanceToLowerPctFromCurrent: -12.3,
+          distanceToUpperPctFromCurrent: 15.7
+        }
+      ]
+    }
+  };
+}
+
+test("in-range invariant implies positive range buffer ratio", () => {
+  const markPrice = 86.5;
+  const lower = 70.7;
+  const upper = 93.75;
+  const summary = buildPositionsSummaryInputs(mkRangePayload(markPrice, lower, upper));
+  const expected = Math.min(markPrice - lower, upper - markPrice) / (upper - lower);
+  assert.ok(summary.rangeBufferRatio != null && summary.rangeBufferRatio > 0);
+  assert.ok(summary.rangeBufferRatio != null && Math.abs(summary.rangeBufferRatio - expected) <= 1e-12);
+});
+
+test("at-lower-edge implies zero range buffer ratio", () => {
+  const lower = 70.7;
+  const upper = 93.75;
+  const summary = buildPositionsSummaryInputs(mkRangePayload(lower, lower, upper));
+  assert.equal(summary.rangeBufferRatio, 0);
+});
+
+test("at-upper-edge implies zero range buffer ratio", () => {
+  const lower = 70.7;
+  const upper = 93.75;
+  const summary = buildPositionsSummaryInputs(mkRangePayload(upper, lower, upper));
+  assert.equal(summary.rangeBufferRatio, 0);
+});
+
+test("reversed bounds are normalized deterministically", () => {
+  const markPrice = 86.5;
+  const lower = 70.7;
+  const upper = 93.75;
+  const summary = buildPositionsSummaryInputs(mkRangePayload(markPrice, upper, lower));
+  const expected = Math.min(markPrice - lower, upper - markPrice) / (upper - lower);
+  assert.equal(summary.rangeLower, lower);
+  assert.equal(summary.rangeUpper, upper);
+  assert.ok(summary.rangeBufferRatio != null && Math.abs(summary.rangeBufferRatio - expected) <= 1e-12);
 });
 
 test("server and vercel entrypoints both use shared summary builder", () => {

@@ -6,6 +6,8 @@ import {
   computeSystemScore
 } from "./portfolio/scoring.js";
 import { scoreFromPortfolioScore } from "./system_engine/score_adapter.js";
+import { computeSystemHealth, type HealthResult } from "./system_engine/health/compute_health.js";
+import { computeCapitalGuard, type CapitalGuardResult } from "./system_engine/capital_guard/compute_capital_guard.js";
 import { buildSolSystemSnapshotFromSummary } from "./system_engine/sol/build_snapshot.js";
 import type { SolSystemSnapshot as CanonicalSolSystemSnapshot, SystemScore } from "./system_engine/types.js";
 
@@ -17,6 +19,8 @@ export type SolSystemSnapshot = {
   liqBufferPct: number;
   rangeBufferPct: number;
   healthScore: number;
+  health: HealthResult;
+  capitalGuard: CapitalGuardResult;
   action: string;
   score: SystemScore;
   snapshot: CanonicalSolSystemSnapshot;
@@ -99,6 +103,8 @@ export function computeSolSystem(params: {
     basisRisk: nextSnapshot.basisRisk,
     dataFreshness: nextSnapshot.dataFreshness
   });
+  const health = computeSystemHealth(nextSnapshot);
+  const capitalGuard = computeCapitalGuard(nextSnapshot, health);
   const healthScore = score.score0to100;
 
   return {
@@ -109,6 +115,8 @@ export function computeSolSystem(params: {
     liqBufferPct,
     rangeBufferPct,
     healthScore,
+    health,
+    capitalGuard,
     action,
     score,
     snapshot: nextSnapshot

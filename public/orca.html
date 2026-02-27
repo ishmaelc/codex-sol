@@ -629,9 +629,26 @@
       function renderPortfolioSystems(indexData) {
         const systems = Array.isArray(indexData?.systems) ? indexData.systems : [];
         const mode = getOperatorMode(runtimeState.monitorCadenceHours);
+        const healthRollup = indexData?.healthRollup || { overall: "strong" };
+        const capitalGuardRollup = indexData?.capitalGuardRollup || { level: "none", triggers: [] };
         return `
           <section class="card section">
             <h2>Portfolio Systems</h2>
+            <div class="mini-card" style="margin-bottom:10px;">
+              <h3>Portfolio Risk</h3>
+              <div class="kv" style="margin-top:6px;">
+                <div class="k">Health</div><div>${escapeHtml(String(healthRollup.overall || "strong").toUpperCase())}</div>
+                <div class="k">Capital Guard</div><div>${escapeHtml(String(capitalGuardRollup.level || "none").toUpperCase())}</div>
+                <div class="k">Triggers</div>
+                <div class="chips">
+                  ${(Array.isArray(capitalGuardRollup.triggers) && capitalGuardRollup.triggers.length
+                    ? capitalGuardRollup.triggers
+                    : ["NONE"])
+                    .map((trigger) => `<span class="chip">${escapeHtml(String(trigger))}</span>`)
+                    .join("")}
+                </div>
+              </div>
+            </div>
             ${
               systems.length === 0
                 ? `<div class="muted">No portfolio system snapshots available yet.</div>`
@@ -647,6 +664,10 @@
                           <div class="k">Net delta</div><div>${fmtNum(system.netDelta, 4)}</div>
                           <div class="k">Leverage</div><div>${fmtNum(system.leverage, 2)}</div>
                           <div class="k">Liq buffer</div><div>${fmtPct(system.liqBufferPct)}</div>
+                          <div class="k">Health</div><div>${escapeHtml(String(system?.health?.overall || "n/a").toUpperCase())}</div>
+                          <div class="k">Hedge / Liq / Range</div>
+                          <div>${escapeHtml(String(system?.health?.hedge || "n/a").toUpperCase())} / ${escapeHtml(String(system?.health?.liquidation || "n/a").toUpperCase())} / ${escapeHtml(String(system?.health?.range || "n/a").toUpperCase())}</div>
+                          <div class="k">Capital Guard</div><div>${escapeHtml(String(system?.capitalGuard?.level || "none").toUpperCase())}</div>
                         </div>
                         <div class="chips" style="margin-top:8px;">
                           ${(() => {
@@ -655,6 +676,11 @@
                             if (!isMissingValue(system.liqBufferPct) && Number(system.liqBufferPct) <= mode.minLiqBufferPct * 100) flags.push("LOW_LIQ_BUFFER");
                             return flags.length ? Array.from(new Set(flags)) : ["NONE"];
                           })().map((f) => `<span class="chip">${escapeHtml(f)}</span>`).join("")}
+                        </div>
+                        <div class="chips" style="margin-top:6px;">
+                          ${(Array.isArray(system?.capitalGuard?.triggers) && system.capitalGuard.triggers.length
+                            ? system.capitalGuard.triggers
+                            : ["NONE"]).map((trigger) => `<span class="chip">${escapeHtml(String(trigger))}</span>`).join("")}
                         </div>
                       </div>`
                     )

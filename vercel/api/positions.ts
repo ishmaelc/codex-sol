@@ -11,6 +11,7 @@ export default async function handler(req: any, res: any) {
   const query = getQuery(req);
   const wallet = String(query.get("wallet") ?? "");
   const mode = String(query.get("mode") ?? "summary").trim().toLowerCase();
+  const debug = String(query.get("debug") ?? "").trim() === "1";
 
   const walletErr = requireWallet(wallet);
   if (walletErr) return json(res, 400, { error: walletErr });
@@ -23,7 +24,7 @@ export default async function handler(req: any, res: any) {
     const summaryInputs = buildPositionsSummaryInputs({
       ...summary,
       jupiterPerps: positions.jupiterPerps
-    });
+    }, { debug: mode === "summary" && debug });
     const solSystem = computeSolSystem(buildSolSystemInputsFromSummary(summaryInputs));
 
     return json(res, 200, {

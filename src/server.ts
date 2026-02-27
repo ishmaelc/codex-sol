@@ -1,11 +1,12 @@
 import "dotenv/config";
 import express from "express";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { PublicKey } from "@solana/web3.js";
 import { buildSummary, fetchWalletPositions } from "./index.js";
 import { computeSolSystem } from "./sol_system.js";
 import { buildPositionsSummaryInputs, buildSolSystemInputsFromSummary } from "./system_engine/positions/build_summary.js";
+import { getAlertsPayloadForRuntime } from "./system_engine/alerts/get_alerts_payload.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
@@ -28,9 +29,29 @@ app.use(
   })
 );
 
+export function createAlertsHandler(deps: {
+  getAlertsPayload: (args: { asOfTs: string; wallet?: string | null }) => Promise<unknown>;
+} = {
+  getAlertsPayload: getAlertsPayloadForRuntime
+}) {
+  return async (req: express.Request, res: express.Response) => {
+    try {
+      const wallet = String(req.query.wallet ?? "").trim() || null;
+      const payload = await deps.getAlertsPayload({
+        asOfTs: new Date().toISOString(),
+        wallet
+      });
+      res.json(payload);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+}
+
 app.get("/api/positions", async (req, res) => {
   const wallet = String(req.query.wallet ?? "").trim();
   const mode = String(req.query.mode ?? "summary").trim().toLowerCase();
+  const debug = String(req.query.debug ?? "").trim() === "1";
 
   if (!wallet) {
     res.status(400).json({ error: "Missing query param: wallet" });
@@ -63,7 +84,7 @@ app.get("/api/positions", async (req, res) => {
     const summaryInputs = buildPositionsSummaryInputs({
       ...summary,
       jupiterPerps: positions.jupiterPerps
-    });
+    }, { debug: mode === "summary" && debug });
     const solSystem = computeSolSystem(buildSolSystemInputsFromSummary(summaryInputs));
 
     const payload = { ...summary, solSystem };
@@ -74,10 +95,15 @@ app.get("/api/positions", async (req, res) => {
   }
 });
 
+app.get("/api/alerts", createAlertsHandler());
+
 app.get(/.*/, (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
-app.listen(port, () => {
-  console.log(`dashboard server listening on http://localhost:${port}`);
-});
+const directRunTarget = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+if (import.meta.url === directRunTarget) {
+  app.listen(port, () => {
+    console.log(`dashboard server listening on http://localhost:${port}`);
+  });
+}

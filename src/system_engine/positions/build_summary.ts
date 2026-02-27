@@ -59,11 +59,9 @@ function toNullableNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function normalizePctToRatio(v: unknown): number {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return 0;
-  const ratio = Math.abs(n) > 1 ? n / 100 : n;
-  return Math.max(0, Math.min(1, ratio));
+function clamp01(v: number): number {
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(1, v));
 }
 
 function toLeveragePositions(payload: PositionsPayloadLike): Array<{
@@ -93,7 +91,10 @@ function toLeveragePositions(payload: PositionsPayloadLike): Array<{
   }>;
 }
 
-export function buildPositionsSummaryInputs(fullPayload: PositionsPayloadLike): SummaryInputs {
+export function buildPositionsSummaryInputs(
+  fullPayload: PositionsPayloadLike,
+  options: { debug?: boolean } = {}
+): SummaryInputs {
   const orcaPositions = fullPayload.orcaWhirlpools?.positions ?? [];
   const strategyVals = fullPayload.kaminoLiquidity?.strategyValuations ?? [];
 
@@ -126,7 +127,8 @@ export function buildPositionsSummaryInputs(fullPayload: PositionsPayloadLike): 
     return acc + Math.abs(toNumberOrZero(p?.size));
   }, 0);
 
-  const markPriceRaw = solPerpPositions.map((p) => Number(p?.markPrice)).find((v) => Number.isFinite(v));
+  const markPriceIdx = solPerpPositions.findIndex((p) => Number.isFinite(Number(p?.markPrice)));
+  const markPriceRaw = markPriceIdx >= 0 ? Number(solPerpPositions[markPriceIdx]?.markPrice) : null;
   const liqPriceRaw = solPerpPositions.map((p) => Number(p?.liquidationPrice)).find((v) => Number.isFinite(v));
   const markPrice = markPriceRaw != null && markPriceRaw > 0 ? markPriceRaw : null;
   const liqPrice = liqPriceRaw != null && liqPriceRaw > 0 ? liqPriceRaw : null;
@@ -135,24 +137,64 @@ export function buildPositionsSummaryInputs(fullPayload: PositionsPayloadLike): 
     rangeBufferRatio: number | null;
     rangeLower: number | null;
     rangeUpper: number | null;
+    sourceIndex: number | null;
+    width: number | null;
+    dLower: number | null;
+    dUpper: number | null;
+    closestEdge: number | null;
+    rawRatio: number | null;
   }>(
-    (state, p) => {
-      const lower = normalizePctToRatio(p?.distanceToLowerPctFromCurrent);
-      const upper = normalizePctToRatio(p?.distanceToUpperPctFromCurrent);
-      const candidates = [lower, upper].filter((v) => Number.isFinite(v) && v >= 0);
-      if (!candidates.length) return state;
-      const next = Math.min(...candidates);
+    (state, p, idx) => {
+      if (markPrice == null) return state;
+      const lowerRaw = toNullableNumber(p?.rangeLower);
+      const upperRaw = toNullableNumber(p?.rangeUpper);
+      if (lowerRaw == null || upperRaw == null) return state;
+      const rangeLower = Math.min(lowerRaw, upperRaw);
+      const rangeUpper = Math.max(lowerRaw, upperRaw);
+      const width = rangeUpper - rangeLower;
+      if (!Number.isFinite(width) || width <= 0) return state;
+      const dLower = markPrice - rangeLower;
+      const dUpper = rangeUpper - markPrice;
+      const closestEdge = Math.min(dLower, dUpper);
+      const rawRatio = closestEdge / width;
+      const next = clamp01(rawRatio);
       if (state.rangeBufferRatio == null || next < state.rangeBufferRatio) {
         return {
           rangeBufferRatio: next,
-          rangeLower: toNullableNumber(p?.rangeLower),
-          rangeUpper: toNullableNumber(p?.rangeUpper)
+          rangeLower,
+          rangeUpper,
+          sourceIndex: idx,
+          width,
+          dLower,
+          dUpper,
+          closestEdge,
+          rawRatio
         };
       }
       return state;
     },
-    { rangeBufferRatio: null, rangeLower: null, rangeUpper: null }
+    { rangeBufferRatio: null, rangeLower: null, rangeUpper: null, sourceIndex: null, width: null, dLower: null, dUpper: null, closestEdge: null, rawRatio: null }
   );
+
+  if (options.debug) {
+    console.log(JSON.stringify({
+      tag: "RANGE_DEBUG",
+      markPrice,
+      rangeLower: rangeState.rangeLower,
+      rangeUpper: rangeState.rangeUpper,
+      width: rangeState.width,
+      dLower: rangeState.dLower,
+      dUpper: rangeState.dUpper,
+      closestEdge: rangeState.closestEdge,
+      rawRatio: rangeState.rawRatio,
+      clampedRatio: rangeState.rangeBufferRatio,
+      source: {
+        markSource: markPriceIdx >= 0 ? `jupiterPerps.leverage.positions[${markPriceIdx}].markPrice` : null,
+        rangeSource: rangeState.sourceIndex != null ? `orcaWhirlpools.positions[${rangeState.sourceIndex}]` : null,
+        formula: "clamp01(min(mark-rangeLower, rangeUpper-mark)/(rangeUpper-rangeLower))"
+      }
+    }));
+  }
 
   return {
     solLong: orcaSolAmount + kaminoSolAmount,
