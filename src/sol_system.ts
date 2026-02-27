@@ -1,3 +1,14 @@
+import {
+  computeDeltaScore,
+  computeHedgeSafetyScore,
+  computeRangeHealthScore,
+  computeStabilityScore,
+  computeSystemScore
+} from "./portfolio/scoring.js";
+import { scoreFromPortfolioScore } from "./system_engine/score_adapter.js";
+import { buildSolSystemSnapshotFromSummary } from "./system_engine/sol/build_snapshot.js";
+import type { SolSystemSnapshot as CanonicalSolSystemSnapshot, SystemScore } from "./system_engine/types.js";
+
 export type SolSystemSnapshot = {
   solLong: number;
   solShort: number;
@@ -7,7 +18,13 @@ export type SolSystemSnapshot = {
   rangeBufferPct: number;
   healthScore: number;
   action: string;
+  score: SystemScore;
+  snapshot: CanonicalSolSystemSnapshot;
 };
+
+function dedupeReasons(reasons: string[]): string[] {
+  return Array.from(new Set(reasons.filter((reason) => reason.length > 0)));
+}
 
 export function computeSolSystem(params: {
   solLong: number;
@@ -15,34 +32,47 @@ export function computeSolSystem(params: {
   markPrice: number;
   liqPrice?: number;
   rangeBufferPct?: number;
+  rangeLower?: number;
+  rangeUpper?: number;
+  leverage?: number;
+  reasons?: string[];
 }): SolSystemSnapshot {
-  const solLong = params.solLong;
-  const solShort = params.solShort;
-  const netSol = solLong - solShort;
-
-  const hedgeCoveragePct = solLong > 0 ? Math.abs(solShort / solLong) : 0;
-
-  const liqBufferPct = params.liqPrice ? params.liqPrice / params.markPrice - 1 : 0;
-
-  const rangeBufferPct = params.rangeBufferPct ?? 0;
-
-  // Subscores
-  const hedgeScore =
-    hedgeCoveragePct >= 0.95 && hedgeCoveragePct <= 1.05
-      ? 25
-      : hedgeCoveragePct >= 0.85 && hedgeCoveragePct <= 1.2
-        ? 18
-        : hedgeCoveragePct >= 0.7 && hedgeCoveragePct <= 1.4
-          ? 10
-          : 0;
-
-  const liqScore = liqBufferPct > 0.3 ? 25 : liqBufferPct > 0.2 ? 18 : liqBufferPct > 0.1 ? 10 : 0;
-
-  const rangeScore = rangeBufferPct > 0.1 ? 25 : rangeBufferPct > 0.05 ? 18 : rangeBufferPct > 0.02 ? 10 : 0;
-
-  const liquidityScore = 20; // placeholder until we wire TVL scoring
-
-  const healthScore = hedgeScore + liqScore + rangeScore + liquidityScore;
+  const snapshot = buildSolSystemSnapshotFromSummary({
+    solLong: params.solLong,
+    solShort: params.solShort,
+    markPrice: params.markPrice,
+    liqPrice: params.liqPrice,
+    rangeBufferRatio: params.rangeBufferPct,
+    rangeLower: params.rangeLower,
+    rangeUpper: params.rangeUpper,
+    leverage: params.leverage,
+    reasons: params.reasons
+  });
+  const deltaScore = computeDeltaScore(snapshot.exposures.netSOLDelta, Math.max(snapshot.exposures.totalLongSOL * 0.3, 0.1));
+  const hedgeScore = computeHedgeSafetyScore({
+    leverage: Number.isFinite(Number(snapshot.liquidation.leverage)) ? Number(snapshot.liquidation.leverage) : 3,
+    liqBufferPct: Number(snapshot.liquidation.liqBufferRatio ?? 0) * 100,
+    fundingApr: 10
+  });
+  const rangeScore = computeRangeHealthScore({
+    inRange: true,
+    distanceToEdgePct: Number(snapshot.range.rangeBufferRatio ?? 0) * 100,
+    widthPct: Number(snapshot.range.rangeBufferRatio ?? 0) * 200,
+    regime: "MODERATE"
+  });
+  const stabilityScore = computeStabilityScore({
+    volumeTvl: 0,
+    depth1pctUsd: 0,
+    feeApr: 0,
+    regimeConfidence: 0.4
+  });
+  const portfolioScore = computeSystemScore({ deltaScore, hedgeScore, rangeScore, stabilityScore });
+  const solLong = snapshot.exposures.totalLongSOL;
+  const solShort = snapshot.exposures.totalShortSOL;
+  const netSol = snapshot.exposures.netSOLDelta;
+  const hedgeCoveragePct = snapshot.exposures.hedgeRatio;
+  const liqBufferPct = snapshot.debugMath.liqBufferRatio ?? 0;
+  const rangeBufferPct = snapshot.debugMath.rangeBufferRatio ?? 0;
 
   let action = "No action";
 
@@ -55,6 +85,21 @@ export function computeSolSystem(params: {
   } else if (rangeBufferPct < 0.03) {
     action = "Prepare range rebalance";
   }
+  const reasons = dedupeReasons([
+    ...(snapshot.reasons ?? []),
+    ...(action === "Increase SOL short" ? ["UNDERHEDGED"] : [])
+  ]);
+  const nextSnapshot: CanonicalSolSystemSnapshot = {
+    ...snapshot,
+    reasons
+  };
+  const score = scoreFromPortfolioScore({
+    portfolioScore,
+    reasons,
+    basisRisk: nextSnapshot.basisRisk,
+    dataFreshness: nextSnapshot.dataFreshness
+  });
+  const healthScore = score.score0to100;
 
   return {
     solLong,
@@ -64,6 +109,8 @@ export function computeSolSystem(params: {
     liqBufferPct,
     rangeBufferPct,
     healthScore,
-    action
+    action,
+    score,
+    snapshot: nextSnapshot
   };
 }

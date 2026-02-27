@@ -4,8 +4,50 @@ import { normalizeCadenceHours } from "./operator_mode.js";
 import { nx8SystemDefinition } from "./systems/nx8_system.js";
 import { solSystemDefinition } from "./systems/sol_system.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot } from "./types.js";
+import { scoreFromPortfolioScore } from "../system_engine/score_adapter.js";
+import { normalizeSnapshot } from "../system_engine/invariants.js";
 
 const systems: HedgedSystemDefinition[] = [solSystemDefinition, nx8SystemDefinition];
+
+export function buildPortfolioIndexSystemEntry(s: HedgedSystemSnapshot): {
+  id: string;
+  label: string;
+  score: number;
+  status: HedgedSystemSnapshot["breakdown"]["status"];
+  netDelta: number;
+  leverage: number | null;
+  liqBufferPct: number | null;
+  riskFlags: HedgedSystemSnapshot["riskFlags"];
+  updatedAt: string;
+  scoreObj: ReturnType<typeof scoreFromPortfolioScore>;
+  snapshot: HedgedSystemSnapshot["canonicalSnapshot"] | null;
+} {
+  const normalizedSnapshot = s.canonicalSnapshot ? normalizeSnapshot(s.canonicalSnapshot) : null;
+  const computedScore = scoreFromPortfolioScore({
+    portfolioScore: s.breakdown,
+    reasons: normalizedSnapshot?.reasons ?? s.riskFlags,
+    basisRisk: normalizedSnapshot?.basisRisk,
+    dataFreshness: normalizedSnapshot?.dataFreshness ?? {
+      hasMarkPrice: s.leverage != null,
+      hasLiqPrice: s.liqBufferPct != null,
+      hasRangeBuffer: true
+    }
+  });
+  const scoreObj = s.canonicalScore ?? computedScore;
+  return {
+    id: s.id,
+    label: s.label,
+    score: s.score,
+    status: s.breakdown.status,
+    netDelta: s.netDelta,
+    leverage: s.leverage,
+    liqBufferPct: s.liqBufferPct,
+    riskFlags: s.riskFlags,
+    updatedAt: s.updatedAt,
+    scoreObj,
+    snapshot: normalizedSnapshot
+  };
+}
 
 export async function runPortfolioEngine(opts: {
   monitorCadenceHours?: number;
@@ -47,6 +89,9 @@ export async function runPortfolioEngine(opts: {
 
   const systemPaths: string[] = [];
   for (const snapshot of snapshots) {
+    if (snapshot.canonicalSnapshot) {
+      snapshot.canonicalSnapshot = normalizeSnapshot(snapshot.canonicalSnapshot);
+    }
     const filePath = path.join(outDir, `${snapshot.id}.json`);
     await fs.writeFile(filePath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
     systemPaths.push(filePath);
@@ -56,17 +101,7 @@ export async function runPortfolioEngine(opts: {
   const indexPayload = {
     updatedAt: new Date().toISOString(),
     monitorCadenceHours: cadence,
-    systems: snapshots.map((s) => ({
-      id: s.id,
-      label: s.label,
-      score: s.score,
-      status: s.breakdown.status,
-      netDelta: s.netDelta,
-      leverage: s.leverage,
-      liqBufferPct: s.liqBufferPct,
-      riskFlags: s.riskFlags,
-      updatedAt: s.updatedAt
-    }))
+    systems: snapshots.map((s) => buildPortfolioIndexSystemEntry(s))
   };
   await fs.mkdir(path.dirname(indexPath), { recursive: true });
   await fs.writeFile(indexPath, `${JSON.stringify(indexPayload, null, 2)}\n`, "utf8");

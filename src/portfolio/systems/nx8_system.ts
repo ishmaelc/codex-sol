@@ -8,7 +8,9 @@ import {
   computeSystemScore
 } from "../scoring.js";
 import { getOperatorMode, normalizeCadenceHours } from "../operator_mode.js";
-import type { HedgedSystemDefinition, HedgedSystemSnapshot, RiskFlags } from "../types.js";
+import { scoreFromPortfolioScore } from "../../system_engine/score_adapter.js";
+import { mapStatusToLabel } from "../../system_engine/label.js";
+import type { CanonicalSystemSnapshot, HedgedSystemDefinition, HedgedSystemSnapshot, RiskFlags } from "../types.js";
 
 async function readJson<T>(filePath: string): Promise<T | null> {
   try {
@@ -167,7 +169,11 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
   const btcShort = btcPerp?.shortBtcQty ?? Number(process.env.PORTFOLIO_BTC_SHORT_UNITS ?? 0);
   const btcPrice = btcPerp?.markPrice ?? Number(process.env.PORTFOLIO_BTC_PRICE_USD ?? 0);
   const leverage = btcPerp?.leverage ?? Number(process.env.PORTFOLIO_BTC_PERP_LEVERAGE ?? 2.5);
-  const liqBufferPct = btcPerp?.liqBufferPct ?? Number(process.env.PORTFOLIO_BTC_LIQ_BUFFER_PCT ?? 12);
+  const liqPriceRaw = btcPerp?.liqPrice ?? null;
+  const liqPrice = liqPriceRaw != null && liqPriceRaw > 0 ? liqPriceRaw : null;
+  const liqBufferPct = liqPrice != null
+    ? (btcPerp?.liqBufferPct ?? Number(process.env.PORTFOLIO_BTC_LIQ_BUFFER_PCT ?? 12))
+    : null;
 
   const totalLongBase = nx8Long;
   const totalShortBase = btcShort;
@@ -182,7 +188,8 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
   const regimeConfidence = asNum(regime?.confidence) ?? 0.25;
 
   const deltaScore = computeDeltaScore(netDelta, Math.max(Math.abs(nx8Notional ?? 1) * operatorMode.deltaTolerance, 1));
-  const hedgeScore = computeHedgeSafetyScore({ leverage, liqBufferPct, fundingApr: 8 });
+  const hedgeScoreInputLiqBufferPct = liqBufferPct ?? 0;
+  const hedgeScore = computeHedgeSafetyScore({ leverage, liqBufferPct: hedgeScoreInputLiqBufferPct, fundingApr: 8 });
   const rangeScore = computeRangeHealthScore({
     inRange: false,
     distanceToEdgePct: 0,
@@ -194,6 +201,60 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
 
   const riskFlags: RiskFlags = ["PROXY_HEDGE", "MISSING_DATA"];
   if (operatorMode.monitorCadenceHours === 48) riskFlags.push("LOW_MONITORING");
+  const reasons = Array.from(new Set(riskFlags));
+  const liqBufferRatio = Number.isFinite(Number(liqBufferPct)) ? Number(liqBufferPct) / 100 : null;
+  const hedgeRatio = (nx8Notional ?? 0) > 0 && (btcNotional ?? 0) > 0 ? Math.abs((btcNotional ?? 0) / (nx8Notional ?? 1)) : 0;
+  const canonicalSnapshot: CanonicalSystemSnapshot = {
+    systemId: "NX8_HEDGED_YIELD",
+    asOfTs: new Date().toISOString(),
+    pricesUsed: {
+      mark: btcPrice > 0 ? btcPrice : null,
+      baseAsset: "NX8"
+    },
+    dataFreshness: {
+      hasMarkPrice: btcPrice > 0,
+      hasLiqPrice: liqPrice != null,
+      hasRangeBuffer: true
+    },
+    exposures: {
+      totalLong: totalLongBase,
+      totalShort: totalShortBase,
+      netDelta,
+      hedgeRatio
+    },
+    liquidation: {
+      liqPrice,
+      liqBufferRatio,
+      leverage: liqPrice == null ? null : leverage
+    },
+    range: {
+      rangeLower: null,
+      rangeUpper: null,
+      rangeBufferRatio: 0
+    },
+    basisRisk: {
+      isProxyHedge: true,
+      basisPenalty: 0,
+      reasonTag: "PROXY_HEDGE"
+    },
+    debugMath: {
+      liqBufferRatio,
+      rangeBufferRatio: 0,
+      hedgeRatio,
+      netDelta,
+      hedgeScoreInputLeverage: liqPrice == null ? null : leverage,
+      hedgeScoreInputLiqBufferPct,
+      hedgeScoreInputFundingApr: 8,
+      hedgeComponent: breakdown.hedge
+    },
+    reasons
+  };
+  const canonicalScore = scoreFromPortfolioScore({
+    portfolioScore: breakdown,
+    reasons,
+    basisRisk: canonicalSnapshot.basisRisk,
+    dataFreshness: canonicalSnapshot.dataFreshness
+  });
 
   return {
     id: "nx8_hedged",
@@ -205,7 +266,10 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
     liqBufferPct,
     score: breakdown.weighted,
     breakdown,
-    riskFlags,
+    riskFlags: reasons,
+    canonicalLabel: mapStatusToLabel(breakdown.status),
+    canonicalScore,
+    canonicalSnapshot,
     updatedAt: new Date().toISOString()
   };
 }

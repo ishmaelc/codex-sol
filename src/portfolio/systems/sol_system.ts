@@ -8,6 +8,9 @@ import {
   computeSystemScore
 } from "../scoring.js";
 import { getOperatorMode, normalizeCadenceHours } from "../operator_mode.js";
+import { scoreFromPortfolioScore } from "../../system_engine/score_adapter.js";
+import { buildSolSystemSnapshotFromSummary } from "../../system_engine/sol/build_snapshot.js";
+import { mapStatusToLabel } from "../../system_engine/label.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot, RiskFlags } from "../types.js";
 
 type JsonObj = Record<string, unknown>;
@@ -136,7 +139,8 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
   const netSolDelta = totalLongSol - totalShortSol;
 
   const markPrice = perp?.markPrice ?? spot;
-  const liqPrice = perp?.liqPrice ?? null;
+  const liqPriceRaw = perp?.liqPrice ?? null;
+  const liqPrice = liqPriceRaw != null && liqPriceRaw > 0 ? liqPriceRaw : null;
   const liqBufferPct = liqPrice != null && markPrice > 0 ? ((liqPrice - markPrice) / markPrice) * 100 : null;
 
   const basePreset = ((solPlan?.presets as unknown[]) ?? []).find((p) => String((p as JsonObj)?.label ?? "") === "Base") as JsonObj | undefined;
@@ -157,10 +161,11 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
   const regimeConfidence = asNum(regime?.confidence) ?? 0.4;
 
   const deltaScore = computeDeltaScore(netSolDelta, Math.max(totalLongSol * operatorMode.deltaTolerance, 0.1));
+  const fundingApr = asNum((plans?.regime as JsonObj | undefined)?.fundingAprPct) ?? 10;
   const hedgeScore = computeHedgeSafetyScore({
     leverage: perp?.leverage ?? 3,
     liqBufferPct: liqBufferPct ?? 0,
-    fundingApr: asNum((plans?.regime as JsonObj | undefined)?.fundingAprPct) ?? 10
+    fundingApr
   });
   const rangeScore = computeRangeHealthScore({
     inRange,
@@ -175,7 +180,26 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
   if ((liqBufferPct ?? 0) < operatorMode.minLiqBufferPct * 100) flags.push("LOW_LIQ_BUFFER");
   if (operatorMode.monitorCadenceHours === 48) flags.push("LOW_MONITORING");
   if ((perp?.leverage ?? 3) > 4) flags.push("HIGH_LEVERAGE");
-  if ((asNum((plans?.regime as JsonObj | undefined)?.fundingAprPct) ?? 0) > 20) flags.push("FUNDING_HEADWIND");
+  if (fundingApr > 20) flags.push("FUNDING_HEADWIND");
+  const reasons = Array.from(new Set(flags));
+  const rangeBufferRatio = distPct != null ? Math.max(0, distPct / 100) : null;
+  const canonicalSnapshot = buildSolSystemSnapshotFromSummary({
+    solLong: totalLongSol,
+    solShort: totalShortSol,
+    markPrice,
+    liqPrice,
+    rangeBufferRatio,
+    rangeLower: asNum(basePreset?.lowerPrice),
+    rangeUpper: asNum(basePreset?.upperPrice),
+    leverage: perp?.leverage ?? null,
+    reasons
+  });
+  const canonicalScore = scoreFromPortfolioScore({
+    portfolioScore: breakdown,
+    reasons,
+    basisRisk: canonicalSnapshot.basisRisk,
+    dataFreshness: canonicalSnapshot.dataFreshness
+  });
 
   return {
     id: "sol_hedged",
@@ -187,7 +211,34 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
     liqBufferPct,
     score: breakdown.weighted,
     breakdown,
-    riskFlags: Array.from(new Set(flags)),
+    riskFlags: reasons,
+    canonicalLabel: mapStatusToLabel(breakdown.status),
+    canonicalScore,
+    canonicalSnapshot: {
+      systemId: canonicalSnapshot.systemId,
+      asOfTs: canonicalSnapshot.asOfTs,
+      pricesUsed: { mark: canonicalSnapshot.pricesUsed.sol, baseAsset: "SOL" },
+      dataFreshness: canonicalSnapshot.dataFreshness,
+      exposures: {
+        totalLong: canonicalSnapshot.exposures.totalLongSOL,
+        totalShort: canonicalSnapshot.exposures.totalShortSOL,
+        netDelta: canonicalSnapshot.exposures.netSOLDelta,
+        hedgeRatio: canonicalSnapshot.exposures.hedgeRatio
+      },
+      liquidation: canonicalSnapshot.liquidation,
+      range: canonicalSnapshot.range,
+      basisRisk: canonicalSnapshot.basisRisk,
+      debugMath: {
+        ...canonicalSnapshot.debugMath,
+        hedgeRatio: canonicalSnapshot.exposures.hedgeRatio,
+        netDelta: canonicalSnapshot.exposures.netSOLDelta,
+        hedgeScoreInputLeverage: perp?.leverage ?? 3,
+        hedgeScoreInputLiqBufferPct: liqBufferPct ?? 0,
+        hedgeScoreInputFundingApr: fundingApr,
+        hedgeComponent: breakdown.hedge
+      },
+      reasons: canonicalSnapshot.reasons
+    },
     exposures: [
       {
         source: "orca_plans",
@@ -215,7 +266,7 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
       quantityBase: totalShortSol,
       notionalUsd: spot > 0 ? totalShortSol * spot : null,
       leverage: perp?.leverage ?? null,
-      liqPrice: perp?.liqPrice ?? null,
+      liqPrice,
       markPrice: markPrice || null,
       liqBufferPct
     },

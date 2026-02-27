@@ -38,6 +38,11 @@ function normalizePct(v: unknown): number {
   return Math.abs(n) > 1 ? n / 100 : n;
 }
 
+function toNullableNumber(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 app.get("/api/positions", async (req, res) => {
   const wallet = String(req.query.wallet ?? "").trim();
   const mode = String(req.query.mode ?? "summary").trim().toLowerCase();
@@ -78,6 +83,8 @@ app.get("/api/positions", async (req, res) => {
           amountBEstUi?: number | null;
           distanceToLowerPctFromCurrent?: number | null;
           distanceToUpperPctFromCurrent?: number | null;
+          rangeLower?: number | null;
+          rangeUpper?: number | null;
         }>;
       };
       kaminoLiquidity?: {
@@ -135,21 +142,37 @@ app.get("/api/positions", async (req, res) => {
     const solMarkPrice = solPerpPositions.map((p) => Number(p?.markPrice)).find((v) => Number.isFinite(v)) ?? 0;
     const solLiqPrice = solPerpPositions.map((p) => Number(p?.liquidationPrice)).find((v) => Number.isFinite(v));
 
-    const closestRangeBuffer = (summary.orcaWhirlpools?.positions ?? []).reduce<number | null>((min, p) => {
+    const rangeState = (summary.orcaWhirlpools?.positions ?? []).reduce<{
+      rangeBufferRatio: number | null;
+      rangeLower: number | null;
+      rangeUpper: number | null;
+    }>(
+      (state, p) => {
       const lower = normalizePct(p?.distanceToLowerPctFromCurrent);
       const upper = normalizePct(p?.distanceToUpperPctFromCurrent);
       const candidates = [lower, upper].filter((v) => Number.isFinite(v) && v >= 0);
-      if (!candidates.length) return min;
+        if (!candidates.length) return state;
       const next = Math.min(...candidates);
-      return min == null ? next : Math.min(min, next);
-    }, null);
+        if (state.rangeBufferRatio == null || next < state.rangeBufferRatio) {
+          return {
+            rangeBufferRatio: next,
+            rangeLower: toNullableNumber(p?.rangeLower),
+            rangeUpper: toNullableNumber(p?.rangeUpper)
+          };
+        }
+        return state;
+      },
+      { rangeBufferRatio: null, rangeLower: null, rangeUpper: null }
+    );
 
     const solSystem = computeSolSystem({
       solLong: (orcaSolAmount ?? 0) + (kaminoSolAmount ?? 0),
       solShort: jupiterSolShortSize ?? 0,
       markPrice: solMarkPrice > 0 ? solMarkPrice : 1,
-      liqPrice: solLiqPrice,
-      rangeBufferPct: closestRangeBuffer ?? 0
+      liqPrice: solLiqPrice ?? undefined,
+      rangeBufferPct: rangeState.rangeBufferRatio ?? 0,
+      rangeLower: rangeState.rangeLower ?? undefined,
+      rangeUpper: rangeState.rangeUpper ?? undefined
     });
 
     const payload = { ...summary, solSystem };

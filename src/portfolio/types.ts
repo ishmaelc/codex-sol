@@ -1,3 +1,5 @@
+import type { SystemLabel, SystemScore } from "../system_engine/types.js";
+
 export type ExposureLeg = {
   source: string;
   asset: string;
@@ -55,7 +57,51 @@ export type HedgedSystemSnapshot = {
   riskFlags: RiskFlags;
   exposures?: ExposureLeg[];
   hedge?: HedgeLeg;
+  canonicalLabel?: SystemLabel;
+  canonicalScore?: SystemScore;
+  canonicalSnapshot?: CanonicalSystemSnapshot;
   updatedAt: string;
+};
+
+export type CanonicalSystemSnapshot = {
+  systemId: string;
+  asOfTs: string | null;
+  pricesUsed: {
+    mark: number | null;
+    baseAsset?: string | null;
+  };
+  dataFreshness: {
+    hasMarkPrice: boolean;
+    hasLiqPrice: boolean;
+    hasRangeBuffer: boolean;
+  };
+  exposures: {
+    totalLong: number;
+    totalShort: number;
+    netDelta: number;
+    hedgeRatio: number;
+  };
+  liquidation: {
+    liqPrice: number | null;
+    liqBufferRatio: number | null;
+    leverage: number | null;
+  };
+  range: {
+    rangeLower: number | null;
+    rangeUpper: number | null;
+    rangeBufferRatio: number | null;
+  };
+  basisRisk: {
+    isProxyHedge: boolean;
+    basisPenalty: number;
+    reasonTag: string | null;
+  };
+  debugMath: {
+    liqBufferRatio: number | null;
+    rangeBufferRatio: number | null;
+    [key: string]: number | null;
+  };
+  reasons: string[];
 };
 
 export type HedgedSystemDefinition = {
