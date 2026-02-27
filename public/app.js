@@ -292,21 +292,43 @@ function renderOrcaSurfaces() {
   renderOrcaTable();
 }
 
+// ATTENTION_STRIP_START
+function systemShortLabel(system) {
+  const raw = String(system?.label ?? system?.id ?? system?.systemId ?? "");
+  if (!raw) return "UNKNOWN";
+  const first = raw.split(/[\s_]/)[0].toUpperCase();
+  return first || raw.toUpperCase();
+}
+
+function systemAlertLevel(system) {
+  const guard = String(system?.capitalGuard?.level ?? "none").toLowerCase();
+  if (guard !== "none") return guard;
+  return String(system?.health?.overall ?? "none").toLowerCase();
+}
+
 function renderAttentionStrip() {
   if (!attentionStripWrap) return;
   const attention = state.alerts.data?.attention ?? null;
   const level = String(attention?.level ?? "none").toUpperCase();
   const triggers = Array.isArray(attention?.triggers) ? attention.triggers.slice(0, 3) : [];
   const systems = getAlertsSystems();
+
   const driverSystems = systems
-    .filter((system) => String(system?.capitalGuard?.level ?? "none").toLowerCase() !== "none")
-    .map((system) => String(system?.id ?? system?.systemId ?? ""))
-    .filter(Boolean);
+    .filter((system) => String(system?.capitalGuard?.level ?? "none").toLowerCase() !== "none");
   const fallbackDrivers = systems
-    .filter((system) => String(system?.health?.overall ?? "").toLowerCase() === "critical")
-    .map((system) => String(system?.id ?? system?.systemId ?? ""))
-    .filter(Boolean);
+    .filter((system) => String(system?.health?.overall ?? "").toLowerCase() === "critical");
   const drivers = (driverSystems.length ? driverSystems : fallbackDrivers).slice(0, 2);
+
+  const driverChips = drivers.length
+    ? drivers.map((system) => {
+        const label = systemShortLabel(system);
+        const alertLevel = systemAlertLevel(system);
+        const modifier = alertLevel === "critical" ? "chip-critical" : alertLevel === "warning" ? "chip-warning" : "";
+        const levelTag = alertLevel !== "none" ? ` · ${alertLevel.toUpperCase()}` : "";
+        return `<span class="chip${modifier ? ` ${modifier}` : ""}">${escapeHtml(label)}${escapeHtml(levelTag)}</span>`;
+      }).join("")
+    : `<span class="table-note">—</span>`;
+
   const body = triggers.length
     ? triggers.map((trigger) => `<span class="chip">${escapeHtml(String(trigger))}</span>`).join("")
     : `<span class="table-note">No active alerts</span>`;
@@ -317,13 +339,17 @@ function renderAttentionStrip() {
       <button type="button" id="attentionOpenOperatorBtn">Open Operator</button>
     </div>
     <div class="table-note">Level: ${escapeHtml(level)}</div>
-    <div class="table-note">Driver: ${escapeHtml(drivers.length ? drivers.join(", ") : "—")}</div>
+    <div class="toggle-row" style="gap:6px;margin-top:4px;align-items:center;">
+      <span class="table-note" style="margin:0;">Driver:</span>
+      ${driverChips}
+    </div>
     <div class="toggle-row" style="margin-top:8px;">${body}</div>
   `;
   document.getElementById("attentionOpenOperatorBtn")?.addEventListener("click", () => {
     setMainTab("operator");
   });
 }
+// ATTENTION_STRIP_END
 
 function getAlertsSystems() {
   return Array.isArray(state.alerts.data?.systems) ? state.alerts.data.systems : [];
