@@ -272,6 +272,12 @@ button:hover {
   background: linear-gradient(180deg, rgba(13, 21, 36, 0.96), rgba(11, 17, 29, 0.96));
 }
 
+.main-tabs {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+}
+
 .tab-btn {
   background: rgba(11, 17, 29, 0.95);
   color: var(--muted);
@@ -333,6 +339,13 @@ button:hover {
   overflow: auto;
   font-size: 0.8rem;
   font-family: "IBM Plex Mono", monospace;
+}
+
+textarea.raw-json {
+  width: 100%;
+  resize: vertical;
+  min-height: 120px;
+  color: var(--text);
 }
 
 .rewards-wrap {

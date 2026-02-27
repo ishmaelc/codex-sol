@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 
 test("orca operator panel block stays display-only (no risk-math recomputation)", () => {
-  const filePath = path.resolve(process.cwd(), "public/orca.html");
+  const filePath = path.resolve(process.cwd(), "public/app.js");
   const html = fs.readFileSync(filePath, "utf8");
 
   const start = html.indexOf("// OPERATOR_ACTION_PANEL_START");

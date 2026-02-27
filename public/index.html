@@ -27,7 +27,7 @@
     <main class="container">
       <header class="hero hero-card card">
         <h1>Portfolio Command Center</h1>
-        <a class="hero-link" href="/orca.html">Open Orca Regime + Pool Rankings</a>
+        <a class="hero-link" href="#orca">Open Orca Regime + Pool Rankings</a>
       </header>
 
       <section class="controls card">
@@ -47,12 +47,21 @@
         </div>
       </section>
 
+      <section class="tabs card main-tabs">
+        <button id="tabPortfolioMain" class="tab-btn is-active" type="button" data-main-tab="portfolio">Portfolio</button>
+        <button id="tabOrcaMain" class="tab-btn" type="button" data-main-tab="orca">Orca</button>
+        <button id="tabOperatorMain" class="tab-btn" type="button" data-main-tab="operator">Operator</button>
+      </section>
+
+      <section id="tab-portfolio">
       <section class="tabs card">
         <button id="tabOverview" class="tab-btn is-active" type="button">Overview</button>
         <button id="tabHedge" class="tab-btn" type="button">Hedge Drift</button>
       </section>
 
       <div id="overviewView">
+        <section class="card" id="orcaSnapshotWrap"></section>
+
         <section class="card hedge-quick-card">
           <div class="section-head">
             <h2>Hedge Drift Snapshot</h2>
@@ -86,6 +95,34 @@
           <div id="hedgeTableWrap" class="rewards-wrap"></div>
         </section>
       </div>
+      </section>
+
+      <section id="tab-orca" class="hidden">
+        <section class="card">
+          <div class="section-head">
+            <h2>Orca Snapshot</h2>
+            <button id="refreshOrcaBtn" type="button">Refresh Orca</button>
+          </div>
+          <div id="orcaSummaryStatus" class="table-note">Idle</div>
+        </section>
+
+        <section class="card">
+          <details id="orcaFullTableDetails">
+            <summary><strong>Orca: Full Pool Rankings</strong> <span class="table-note">(show/hide)</span></summary>
+            <div id="orcaTableWrap" class="rewards-wrap" style="margin-top:10px;"></div>
+          </details>
+        </section>
+      </section>
+
+      <section id="tab-operator" class="hidden">
+        <section class="card">
+          <div class="section-head">
+            <h2>Operator</h2>
+            <span class="section-subtle">Display-only canonical controls</span>
+          </div>
+          <div id="operatorPanelWrap"></div>
+        </section>
+      </section>
 
     </main>
 

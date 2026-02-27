@@ -2,6 +2,18 @@ const walletInput = document.getElementById("walletInput");
 const loadBtn = document.getElementById("loadBtn");
 const operatorModeToggle = document.getElementById("operatorModeToggle");
 const statusEl = document.getElementById("status");
+const tabPortfolioMain = document.getElementById("tabPortfolioMain");
+const tabOrcaMain = document.getElementById("tabOrcaMain");
+const tabOperatorMain = document.getElementById("tabOperatorMain");
+const tabPortfolioSection = document.getElementById("tab-portfolio");
+const tabOrcaSection = document.getElementById("tab-orca");
+const tabOperatorSection = document.getElementById("tab-operator");
+const refreshOrcaBtn = document.getElementById("refreshOrcaBtn");
+const orcaSummaryStatus = document.getElementById("orcaSummaryStatus");
+const orcaFullTableDetails = document.getElementById("orcaFullTableDetails");
+const orcaSnapshotWrap = document.getElementById("orcaSnapshotWrap");
+const orcaTableWrap = document.getElementById("orcaTableWrap");
+const operatorPanelWrap = document.getElementById("operatorPanelWrap");
 const summaryCards = document.getElementById("summaryCards");
 const walletTokensWrap = document.getElementById("walletTokensWrap");
 const rewardsTableWrap = document.getElementById("rewardsTableWrap");
@@ -19,6 +31,10 @@ const rewardsCard = rewardsTableWrap?.closest("section.card");
 const rawSummaryCard = rawJson?.closest("section.card");
 
 const OPERATOR_MODE_KEY = "operatorModeEnabled";
+const MAIN_TAB_KEY = "mainDashboardTab";
+const ORCA_FULL_TABLE_OPEN_KEY = "orcaFullTableOpen";
+const ORCA_REGIME_URL = "/data/orca/regime_state.json";
+const ORCA_POOLS_URL = "/data/orca/pool_rankings.json";
 
 const DEFAULT_WALLET = "4ogWhtiSEAaXZCDD9BPAnRa2DY18pxvF9RbiUUdRJSvr";
 walletInput.value = DEFAULT_WALLET;
@@ -30,6 +46,8 @@ let latestFullPositions = null;
 let latestPortfolioSystems = null;
 let fullPositionsLoadPromise = null;
 let operatorModeEnabled = false;
+let currentMainTab = "portfolio";
+let latestOrcaData = null;
 
 const HEDGE_LINKS = [
   { strategyLabel: "NX8-USDC vs WBTC Short", lpPair: "NX8-USDC", perpSymbol: "WBTC" },
@@ -57,6 +75,43 @@ function persistOperatorModeState(enabled) {
 function setHidden(el, hidden) {
   if (!el) return;
   el.classList.toggle("hidden", Boolean(hidden));
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function loadMainTabState() {
+  try {
+    const fromHash = String(window.location.hash || "").replace(/^#/, "").toLowerCase();
+    if (fromHash === "portfolio" || fromHash === "orca" || fromHash === "operator") return fromHash;
+    const stored = String(localStorage.getItem(MAIN_TAB_KEY) || "").toLowerCase();
+    if (stored === "portfolio" || stored === "orca" || stored === "operator") return stored;
+  } catch {}
+  return "portfolio";
+}
+
+function persistMainTabState(tab) {
+  try {
+    localStorage.setItem(MAIN_TAB_KEY, tab);
+  } catch {}
+}
+
+function loadOrcaFullTableState() {
+  try {
+    return localStorage.getItem(ORCA_FULL_TABLE_OPEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistOrcaFullTableState(open) {
+  try {
+    localStorage.setItem(ORCA_FULL_TABLE_OPEN_KEY, open ? "1" : "0");
+  } catch {}
 }
 
 function fmtUsd(value) {
@@ -302,6 +357,249 @@ function setTab(tab) {
   }
 }
 
+function setMainTab(tab, options = {}) {
+  const next = tab === "orca" || tab === "operator" ? tab : "portfolio";
+  currentMainTab = next;
+  setHidden(tabPortfolioSection, next !== "portfolio");
+  setHidden(tabOrcaSection, next !== "orca");
+  setHidden(tabOperatorSection, next !== "operator");
+  tabPortfolioMain?.classList.toggle("is-active", next === "portfolio");
+  tabOrcaMain?.classList.toggle("is-active", next === "orca");
+  tabOperatorMain?.classList.toggle("is-active", next === "operator");
+  if (!options.skipHash) window.location.hash = `#${next}`;
+  persistMainTabState(next);
+  if ((next === "portfolio" || next === "orca") && !latestOrcaData) void ensureOrcaDataLoaded();
+  if (next === "operator") renderOperatorPanel(latestSummary);
+}
+
+async function loadOrcaData(options = {}) {
+  const cacheBust = options.cacheBust ? `?t=${Date.now()}` : "";
+  const [regimeRes, poolsRes] = await Promise.all([
+    fetch(`${ORCA_REGIME_URL}${cacheBust}`),
+    fetch(`${ORCA_POOLS_URL}${cacheBust}`)
+  ]);
+  if (!regimeRes.ok) throw new Error(`regime_state.json HTTP ${regimeRes.status}`);
+  if (!poolsRes.ok) throw new Error(`pool_rankings.json HTTP ${poolsRes.status}`);
+  return {
+    regime: await regimeRes.json(),
+    pools: await poolsRes.json()
+  };
+}
+
+async function ensureOrcaDataLoaded(options = {}) {
+  if (!orcaSummaryStatus) return;
+  if (latestOrcaData && !options.force) {
+    renderOrcaSurfaces();
+    return;
+  }
+  orcaSummaryStatus.textContent = "Loading Orca data...";
+  try {
+    latestOrcaData = await loadOrcaData({ cacheBust: options.cacheBust });
+    orcaSummaryStatus.textContent = `Orca data updated ${new Date().toLocaleTimeString()}`;
+    renderOrcaSurfaces();
+  } catch (err) {
+    orcaSummaryStatus.textContent = err instanceof Error ? err.message : String(err);
+  }
+}
+
+// ORCA_SNAPSHOT_START
+function renderOrcaSnapshotCard() {
+  if (!orcaSnapshotWrap) return;
+  const regime = latestOrcaData?.regime ?? null;
+  const poolRowsRaw = Array.isArray(latestOrcaData?.pools?.topPoolsOverall)
+    ? latestOrcaData.pools.topPoolsOverall
+    : Array.isArray(latestOrcaData?.pools?.pools)
+      ? latestOrcaData.pools.pools
+      : [];
+  const poolRows = poolRowsRaw.filter((row) => row?.type !== "STABLE-STABLE");
+  const topRows = poolRows.slice(0, 5);
+  if (!regime) {
+    orcaSnapshotWrap.innerHTML = `
+      <div class="section-head"><h2>Orca Snapshot</h2></div>
+      <div class="rewards-empty">Orca snapshot unavailable.</div>
+    `;
+    return;
+  }
+  orcaSnapshotWrap.innerHTML = `
+    <div class="section-head">
+      <h2>Orca Snapshot</h2>
+      <button type="button" id="openOrcaTabBtn">Open Orca tab</button>
+    </div>
+    <div class="table-note">Regime ${escapeHtml(String(regime.regime ?? "n/a"))} | Confidence ${Number.isFinite(Number(regime.confidence)) ? `${(Number(regime.confidence) * 100).toFixed(0)}%` : "n/a"}</div>
+    ${
+      topRows.length
+        ? `<table class="summary-table" style="margin-top:10px;">
+            <thead><tr><th>Rank</th><th>Pool</th><th>Score</th></tr></thead>
+            <tbody>
+              ${topRows
+                .map(
+                  (row) => `<tr>
+                    <td>${row.rank ?? ""}</td>
+                    <td>${escapeHtml(String(row.pool ?? ""))}</td>
+                    <td>${Number.isFinite(Number(row.score)) ? Number(row.score).toFixed(2) : "n/a"}</td>
+                  </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>`
+        : `<div class="rewards-empty">No ranked pools.</div>`
+    }
+  `;
+  const openOrcaTabBtn = document.getElementById("openOrcaTabBtn");
+  openOrcaTabBtn?.addEventListener("click", () => setMainTab("orca"));
+}
+// ORCA_SNAPSHOT_END
+
+function renderOrcaTable() {
+  if (!orcaTableWrap) return;
+  const poolRowsRaw = Array.isArray(latestOrcaData?.pools?.topPoolsOverall)
+    ? latestOrcaData.pools.topPoolsOverall
+    : Array.isArray(latestOrcaData?.pools?.pools)
+      ? latestOrcaData.pools.pools
+      : [];
+  const poolRows = poolRowsRaw.filter((row) => row?.type !== "STABLE-STABLE");
+  if (!poolRows.length) {
+    orcaTableWrap.innerHTML = `<div class="rewards-empty">No pool rankings available.</div>`;
+    return;
+  }
+  orcaTableWrap.innerHTML = `
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>Rank</th><th>Pool</th><th>Type</th><th>TVL</th><th>Volume24h</th><th>Fee APR</th><th>Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${poolRows
+          .map(
+            (row) => `<tr>
+              <td>${row.rank ?? ""}</td>
+              <td>${escapeHtml(String(row.pool ?? ""))}</td>
+              <td>${escapeHtml(String(row.type ?? ""))}</td>
+              <td>${fmtUsd(row.tvlUsd)}</td>
+              <td>${fmtUsd(row.volume24hUsd)}</td>
+              <td>${fmtPct(row.feeAprPct)}</td>
+              <td>${Number.isFinite(Number(row.score)) ? Number(row.score).toFixed(2) : "n/a"}</td>
+            </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderOrcaSurfaces() {
+  renderOrcaSnapshotCard();
+  renderOrcaTable();
+}
+
+// OPERATOR_ACTION_PANEL_START
+// Ordering: engine-provided order (deterministic). UI must not sort.
+function getOperatorReasons(solSystem) {
+  const fromScoreObj = Array.isArray(solSystem?.scoreObj?.reasons) ? solSystem.scoreObj.reasons : [];
+  if (fromScoreObj.length > 0) return fromScoreObj;
+  const fromScore = Array.isArray(solSystem?.score?.reasons) ? solSystem.score.reasons : [];
+  if (fromScore.length > 0) return fromScore;
+  return Array.isArray(solSystem?.snapshot?.reasons) ? solSystem.snapshot.reasons : [];
+}
+
+async function copyTextValue(text) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  ta.remove();
+}
+
+function operatorCopyPayload(kind, summary) {
+  const solSystem = summary?.solSystem ?? null;
+  const reasons = getOperatorReasons(solSystem);
+  const triggers = Array.isArray(solSystem?.capitalGuard?.triggers) ? solSystem.capitalGuard.triggers : [];
+  const level = String(solSystem?.capitalGuard?.level ?? "none");
+  const actionLines = [`LEVEL: ${level}`];
+  if (triggers.length > 0) {
+    actionLines.push("TRIGGERS:");
+    for (const trigger of triggers) actionLines.push(`- ${String(trigger)}`);
+  } else {
+    actionLines.push("TRIGGERS: (none)");
+  }
+  if (reasons.length > 0) {
+    actionLines.push("REASONS:");
+    for (const reason of reasons) actionLines.push(`- ${String(reason)}`);
+  } else {
+    actionLines.push("REASONS: (none)");
+  }
+
+  if (kind === "triggers") return triggers.length ? triggers.join("\n") : "No triggers";
+  if (kind === "reasons") return reasons.length ? reasons.join("\n") : "No reasons";
+  if (kind === "actionText") return actionLines.join("\n");
+  if (kind === "debug") return JSON.stringify(solSystem?.snapshot?.debugMath ?? null, null, 2);
+  return JSON.stringify(summary ?? null, null, 2);
+}
+
+function renderOperatorPanel(summary) {
+  if (!operatorPanelWrap) return;
+  const solSystem = summary?.solSystem ?? null;
+  if (!solSystem) {
+    operatorPanelWrap.innerHTML = `<div class="rewards-empty">Load wallet summary to view operator panel.</div>`;
+    return;
+  }
+  const score = solSystem?.scoreObj ?? solSystem?.score ?? null;
+  const reasons = getOperatorReasons(solSystem);
+  const triggers = Array.isArray(solSystem?.capitalGuard?.triggers) ? solSystem.capitalGuard.triggers : [];
+  const actionText = operatorCopyPayload("actionText", summary);
+
+  operatorPanelWrap.innerHTML = `
+    <div class="table-note">Display-only canonical controls from <code>/api/positions?mode=summary</code>.</div>
+    <table class="summary-table" style="margin-top:10px;">
+      <tbody>
+        <tr><td>Capital Guard</td><td>${escapeHtml(String(solSystem?.capitalGuard?.level ?? "none").toUpperCase())}</td></tr>
+        <tr><td>Health</td><td>${escapeHtml(String(solSystem?.health?.overall ?? "n/a").toUpperCase())}</td></tr>
+        <tr><td>Score</td><td>${escapeHtml(String(score?.label ?? "n/a"))} (${Number.isFinite(Number(score?.score0to100)) ? Number(score.score0to100).toFixed(0) : "n/a"})</td></tr>
+      </tbody>
+    </table>
+    <h4 class="table-subhead">Triggers</h4>
+    ${triggers.length ? `<ul>${triggers.map((t) => `<li>${escapeHtml(String(t))}</li>`).join("")}</ul>` : `<div class="rewards-empty">No triggers</div>`}
+    <h4 class="table-subhead">Reasons</h4>
+    ${reasons.length ? `<ul>${reasons.map((r) => `<li>${escapeHtml(String(r))}</li>`).join("")}</ul>` : `<div class="rewards-empty">No reasons</div>`}
+    <h4 class="table-subhead">Action Text</h4>
+    <textarea id="operatorActionText" class="raw-json" readonly>${escapeHtml(actionText)}</textarea>
+    <h4 class="table-subhead">Debug Math (raw)</h4>
+    <pre class="raw-json">${escapeHtml(JSON.stringify(solSystem?.snapshot?.debugMath ?? null, null, 2))}</pre>
+    <div class="toggle-row" style="margin-top:10px;">
+      <button type="button" id="copyOperatorTriggersBtn">Copy Triggers</button>
+      <button type="button" id="copyOperatorReasonsBtn">Copy Reasons</button>
+      <button type="button" id="copyOperatorActionBtn">Copy Action Text</button>
+      <button type="button" id="copyOperatorDebugBtn">Copy Debug Math</button>
+      <button type="button" id="copyOperatorSummaryBtn">Copy Full Summary JSON</button>
+    </div>
+    <div id="operatorCopyStatus" class="table-note"></div>
+  `;
+
+  const statusElLocal = document.getElementById("operatorCopyStatus");
+  const bindCopy = (id, kind) => {
+    document.getElementById(id)?.addEventListener("click", async () => {
+      try {
+        await copyTextValue(operatorCopyPayload(kind, summary));
+        if (statusElLocal) statusElLocal.textContent = `Copied ${kind}`;
+      } catch (err) {
+        if (statusElLocal) statusElLocal.textContent = err instanceof Error ? err.message : String(err);
+      }
+    });
+  };
+  bindCopy("copyOperatorTriggersBtn", "triggers");
+  bindCopy("copyOperatorReasonsBtn", "reasons");
+  bindCopy("copyOperatorActionBtn", "actionText");
+  bindCopy("copyOperatorDebugBtn", "debug");
+  bindCopy("copyOperatorSummaryBtn", "summary");
+}
+// OPERATOR_ACTION_PANEL_END
+
 async function ensureFullPositionsLoaded() {
   const wallet = latestWallet || walletInput.value.trim();
   if (!wallet) return null;
@@ -341,16 +639,8 @@ async function ensureFullPositionsLoaded() {
 }
 
 function applyOperatorMode() {
-  setHidden(tabsWrap, operatorModeEnabled);
-  setHidden(hedgeQuickCard, operatorModeEnabled);
-  setHidden(walletTokensCard, operatorModeEnabled);
-  setHidden(rewardsCard, operatorModeEnabled);
-  setHidden(rawSummaryCard, operatorModeEnabled);
-  setHidden(tabHedge, operatorModeEnabled);
-
   if (operatorModeEnabled) {
-    setTab("overview");
-    setHidden(hedgeView, true);
+    setMainTab("operator");
   }
 }
 
@@ -1337,6 +1627,7 @@ function render(summary, fullPositions) {
     : `<div class="rewards-empty">No rewards found.</div>`;
 
   rawJson.textContent = JSON.stringify(summary, null, 2);
+  renderOperatorPanel(summary);
   renderHedge(summary, fullPositions);
 }
 
@@ -1394,6 +1685,18 @@ walletInput.addEventListener("keydown", (e) => {
 });
 tabOverview.addEventListener("click", () => setTab("overview"));
 tabHedge.addEventListener("click", () => setTab("hedge"));
+tabPortfolioMain?.addEventListener("click", () => setMainTab("portfolio"));
+tabOrcaMain?.addEventListener("click", () => setMainTab("orca"));
+tabOperatorMain?.addEventListener("click", () => setMainTab("operator"));
+refreshOrcaBtn?.addEventListener("click", () => {
+  void ensureOrcaDataLoaded({ force: true, cacheBust: true });
+});
+if (orcaFullTableDetails) {
+  orcaFullTableDetails.open = loadOrcaFullTableState();
+  orcaFullTableDetails.addEventListener("toggle", () => {
+    persistOrcaFullTableState(Boolean(orcaFullTableDetails.open));
+  });
+}
 operatorModeToggle?.addEventListener("change", () => {
   operatorModeEnabled = Boolean(operatorModeToggle.checked);
   persistOperatorModeState(operatorModeEnabled);
@@ -1404,4 +1707,12 @@ operatorModeEnabled = loadOperatorModeState();
 if (operatorModeToggle) operatorModeToggle.checked = operatorModeEnabled;
 applyOperatorMode();
 setTab(currentTab);
+window.addEventListener("hashchange", () => {
+  const hashTab = String(window.location.hash || "").replace(/^#/, "").toLowerCase();
+  if (hashTab === "portfolio" || hashTab === "orca" || hashTab === "operator") {
+    setMainTab(hashTab, { skipHash: true });
+  }
+});
+setMainTab(operatorModeEnabled ? "operator" : loadMainTabState(), { skipHash: true });
+void ensureOrcaDataLoaded();
 loadSummary();
