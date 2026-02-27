@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import { handlePositionsQuery, handleAlertsQuery } from "../runtime/api_handlers.js";
 
@@ -50,4 +52,15 @@ test("/api/alerts missing wallet returns 400 JSON payload", async () => {
   assert.equal(result.status, 400);
   const body = result.body as any;
   assert.equal(body?.error, "MISSING_WALLET");
+});
+
+test("runtime handlers and alerts getter do not perform filesystem writes", () => {
+  const handlersSrc = fs.readFileSync(path.resolve(process.cwd(), "src/system_engine/runtime/api_handlers.ts"), "utf8");
+  const alertsGetterSrc = fs.readFileSync(path.resolve(process.cwd(), "src/system_engine/alerts/get_alerts_payload.ts"), "utf8");
+
+  const forbiddenWriteTokens = ["writeFileSync", "writeFile(", "appendFile", "mkdirSync", "createWriteStream", "runPortfolioEngine("];
+  for (const token of forbiddenWriteTokens) {
+    assert.equal(handlersSrc.includes(token), false, `api_handlers.ts must be runtime read-only: found ${token}`);
+    assert.equal(alertsGetterSrc.includes(token), false, `get_alerts_payload.ts must be runtime read-only: found ${token}`);
+  }
 });

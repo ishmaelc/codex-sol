@@ -45,6 +45,10 @@ test("assert_build_outputs succeeds when required files exist", () => {
   assert.equal(res.status, 0);
   assert.match(res.stdout, /OK: required build artifacts exist/);
 });
+
+test("build output required list includes regime_state artifact", () => {
+  assert.equal(REQUIRED_FILES.includes("public/data/orca/regime_state.json"), true);
+});
 const REQUIRED_FILES = [
   "public/data/orca/regime_state.json",
   "public/data/orca/pool_rankings.json",
