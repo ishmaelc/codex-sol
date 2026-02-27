@@ -309,6 +309,9 @@ function systemAlertLevel(system) {
 function renderAttentionStrip() {
   if (!attentionStripWrap) return;
   const attention = state.alerts.data?.attention ?? null;
+  const alertsMeta = state.alerts.data?.meta ?? null;
+  const alertsDegraded = Boolean(alertsMeta?.degraded);
+  const alertsErrorCode = String(alertsMeta?.errorCode ?? "ERROR");
   const level = String(attention?.level ?? "none").toUpperCase();
   const triggers = Array.isArray(attention?.triggers) ? attention.triggers.slice(0, 3) : [];
   const systems = getAlertsSystems();
@@ -339,6 +342,7 @@ function renderAttentionStrip() {
       <button type="button" id="attentionOpenOperatorBtn">Open Operator</button>
     </div>
     <div class="table-note">Level: ${escapeHtml(level)}</div>
+    ${alertsDegraded ? `<div class="table-note">Alerts degraded (${escapeHtml(alertsErrorCode)}): showing fallback state.</div>` : ""}
     <div class="toggle-row" style="gap:6px;margin-top:4px;align-items:center;">
       <span class="table-note" style="margin:0;">Driver:</span>
       ${driverChips}
@@ -471,6 +475,9 @@ function renderSystemConsoles() {
     { id: kinds.nx8Id, label: "NX8", system: kinds.nx8System }
   ];
   const alertsUnavailable = getAlertsSystems().length === 0;
+  const alertsMeta = state.alerts.data?.meta ?? null;
+  const alertsDegraded = Boolean(alertsMeta?.degraded);
+  const alertsErrorCode = String(alertsMeta?.errorCode ?? "ERROR");
   const dash = "—";
   const rendered = systems.map(({ system, label }) => {
     if (!system) {
@@ -547,7 +554,7 @@ function renderSystemConsoles() {
   systemConsolesWrap.innerHTML = `
     <div class="section-head">
       <h2>Systems Overview</h2>
-      ${alertsUnavailable ? `<span class="table-note">Alerts unavailable</span>` : ""}
+      ${alertsUnavailable ? `<span class="table-note">Alerts unavailable${alertsDegraded ? ` (${escapeHtml(alertsErrorCode)})` : ""}</span>` : ""}
     </div>
     <table class="summary-table system-consoles-table">
       <thead>
