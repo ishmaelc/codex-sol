@@ -104,6 +104,83 @@
         cursor: wait;
       }
 
+      .operator-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .operator-toggle input {
+        accent-color: var(--accent);
+      }
+
+      .operator-wallet {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: rgba(15, 23, 40, 0.8);
+        color: var(--text);
+        min-width: 260px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.78rem;
+      }
+
+      .operator-panel .panel-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+
+      .operator-panel pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.75rem;
+        color: #d2e7ff;
+      }
+
+      .operator-panel textarea {
+        width: 100%;
+        min-height: 148px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(15, 23, 40, 0.85);
+        color: #d2e7ff;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.75rem;
+        padding: 10px;
+        resize: vertical;
+      }
+
+      .operator-panel .copy-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .operator-panel .copy-btn {
+        border: 1px solid var(--line-strong);
+        border-radius: 10px;
+        background: rgba(15, 23, 40, 0.9);
+        color: var(--text);
+        padding: 6px 10px;
+        font-size: 0.78rem;
+        cursor: pointer;
+      }
+
+      .operator-panel .copy-status {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
 
       .nav-link {
         color: var(--accent-3);
@@ -449,6 +526,13 @@
         <h1>Orca Regime + Pool Rankings</h1>
         <div class="header-right">
           <a class="btn nav-link" href="/">Back to Main Dashboard</a>
+          <label class="operator-toggle"><input id="operatorModeToggleOrca" type="checkbox" /> Operator Mode</label>
+          <input
+            id="operatorWalletInputOrca"
+            class="operator-wallet"
+            type="text"
+            placeholder="Operator wallet for /api/positions summary"
+          />
           <button id="refreshBtn" class="btn" type="button">Refresh</button>
           <button id="refreshLiveSpotBtn" class="btn" type="button">Refresh Live Prices</button>
           <div id="liveSpotCard" class="header-pill">
@@ -474,10 +558,16 @@
       const ALLOCATION_URL = "/data/orca/allocation.json";
       const ALERTS_URL = "/data/orca/alerts.json";
       const PERFORMANCE_URL = "/data/orca/performance.json";
+      const POSITIONS_SUMMARY_URL = "/api/positions";
       const LIVE_SOL_SPOT_PROXY_URL = "/api/sol-spot";
       const LIVE_SOL_SPOT_URL = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
+      const ORCA_OPERATOR_MODE_KEY = "orcaOperatorModeEnabled";
+      const ORCA_OPERATOR_WALLET_KEY = "orcaOperatorWallet";
+      const DEFAULT_OPERATOR_WALLET = "4ogWhtiSEAaXZCDD9BPAnRa2DY18pxvF9RbiUUdRJSvr";
       const runtimeState = {
         latestData: null,
+        latestPositionsSummary: null,
+        operatorSummaryError: null,
         calc: null,
         liveSpot: {
           priceUsd: null,
@@ -493,6 +583,43 @@
           error: null
         }
       };
+      const operatorModeToggleOrca = document.getElementById("operatorModeToggleOrca");
+      const operatorWalletInputOrca = document.getElementById("operatorWalletInputOrca");
+
+      function loadOrcaOperatorModeState() {
+        try {
+          return localStorage.getItem(ORCA_OPERATOR_MODE_KEY) === "1";
+        } catch {
+          return false;
+        }
+      }
+
+      function persistOrcaOperatorModeState(enabled) {
+        try {
+          localStorage.setItem(ORCA_OPERATOR_MODE_KEY, enabled ? "1" : "0");
+        } catch {}
+      }
+
+      function loadOrcaOperatorWallet() {
+        const qsWallet = new URLSearchParams(window.location.search).get("wallet");
+        if (qsWallet && qsWallet.trim()) return qsWallet.trim();
+        try {
+          const stored = localStorage.getItem(ORCA_OPERATOR_WALLET_KEY);
+          if (stored && stored.trim()) return stored.trim();
+        } catch {}
+        return DEFAULT_OPERATOR_WALLET;
+      }
+
+      function persistOrcaOperatorWallet(wallet) {
+        try {
+          localStorage.setItem(ORCA_OPERATOR_WALLET_KEY, wallet);
+        } catch {}
+      }
+
+      runtimeState.operatorModeEnabled = loadOrcaOperatorModeState();
+      runtimeState.operatorWallet = loadOrcaOperatorWallet();
+      if (operatorModeToggleOrca) operatorModeToggleOrca.checked = runtimeState.operatorModeEnabled;
+      if (operatorWalletInputOrca) operatorWalletInputOrca.value = runtimeState.operatorWallet;
       const STABLE_SYMBOLS = new Set(["USDC", "USDT", "USDG", "USDE", "DAI", "USDS", "USD1", "PYUSD", "ONYC"]);
       const KNOWN_STABLE_MINTS = new Set([
         "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -688,6 +815,132 @@
             }
           </section>`;
       }
+
+      // OPERATOR_ACTION_PANEL_START
+      // Ordering: engine-provided order (deterministic). UI must not sort.
+      function getOperatorReasons(solSystem) {
+        const fromScoreObj = Array.isArray(solSystem?.scoreObj?.reasons) ? solSystem.scoreObj.reasons : [];
+        if (fromScoreObj.length > 0) return fromScoreObj;
+        const fromScore = Array.isArray(solSystem?.score?.reasons) ? solSystem.score.reasons : [];
+        if (fromScore.length > 0) return fromScore;
+        const fromSnapshot = Array.isArray(solSystem?.snapshot?.reasons) ? solSystem.snapshot.reasons : [];
+        return fromSnapshot;
+      }
+
+      function escapeJsonBlock(value) {
+        return escapeHtml(JSON.stringify(value ?? null, null, 2));
+      }
+
+      async function copyTextValue(text) {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+
+      function operatorCopyPayload(kind) {
+        const summary = runtimeState.latestPositionsSummary;
+        const solSystem = summary?.solSystem ?? null;
+        const reasons = getOperatorReasons(solSystem);
+        const triggers = Array.isArray(solSystem?.capitalGuard?.triggers) ? solSystem.capitalGuard.triggers : [];
+        const guardLevel = String(solSystem?.capitalGuard?.level ?? "none");
+        const actionTextLines = [`LEVEL: ${guardLevel}`];
+        if (triggers.length > 0) {
+          actionTextLines.push("TRIGGERS:");
+          for (const trigger of triggers) actionTextLines.push(`- ${String(trigger)}`);
+        } else {
+          actionTextLines.push("TRIGGERS: (none)");
+        }
+        if (reasons.length > 0) {
+          actionTextLines.push("REASONS:");
+          for (const reason of reasons) actionTextLines.push(`- ${String(reason)}`);
+        } else {
+          actionTextLines.push("REASONS: (none)");
+        }
+        if (kind === "triggers") {
+          return triggers.length ? triggers.join("\n") : "No triggers";
+        }
+        if (kind === "reasons") {
+          return reasons.length ? reasons.join("\n") : "No reasons";
+        }
+        if (kind === "actionText") {
+          return actionTextLines.join("\n");
+        }
+        if (kind === "debug") {
+          return JSON.stringify(solSystem?.snapshot?.debugMath ?? null, null, 2);
+        }
+        return JSON.stringify(summary ?? null, null, 2);
+      }
+
+      function renderOperatorActionPanel(summaryPayload) {
+        if (!runtimeState.operatorModeEnabled) return "";
+        const solSystem = summaryPayload?.solSystem ?? null;
+        const score = solSystem?.scoreObj ?? solSystem?.score ?? null;
+        const reasons = getOperatorReasons(solSystem);
+        const triggers = Array.isArray(solSystem?.capitalGuard?.triggers) ? solSystem.capitalGuard.triggers : [];
+        const healthOverall = String(solSystem?.health?.overall ?? "n/a").toUpperCase();
+        const guardLevel = String(solSystem?.capitalGuard?.level ?? "none").toUpperCase();
+        const scoreLabel = String(score?.label ?? "n/a");
+        const scoreValue = score?.score0to100;
+        const copyStatus = runtimeState.operatorSummaryError ? `Summary fetch error: ${runtimeState.operatorSummaryError}` : "";
+        const actionText = operatorCopyPayload("actionText");
+
+        return `
+          <section class="card section operator-panel">
+            <h2>Operator Mode Action Panel</h2>
+            <div class="muted" style="margin-bottom:8px;">Display-only canonical controls from <code>/api/positions?mode=summary</code>.</div>
+            <div class="panel-grid">
+              <div class="mini-card">
+                <h3>Attention Summary</h3>
+                <div class="kv" style="margin-top:8px;">
+                  <div class="k">Capital Guard</div><div>${escapeHtml(guardLevel)}</div>
+                  <div class="k">Health</div><div>${escapeHtml(healthOverall)}</div>
+                  <div class="k">Score</div><div>${escapeHtml(scoreLabel)} ${scoreValue != null ? `(${escapeHtml(String(scoreValue))})` : ""}</div>
+                </div>
+              </div>
+              <div class="mini-card">
+                <h3>Triggers</h3>
+                ${
+                  triggers.length
+                    ? `<ul>${triggers.map((trigger) => `<li>${escapeHtml(String(trigger))}</li>`).join("")}</ul>`
+                    : `<div class="muted">No triggers</div>`
+                }
+              </div>
+              <div class="mini-card">
+                <h3>Reasons</h3>
+                ${
+                  reasons.length
+                    ? `<ul>${reasons.map((reason) => `<li>${escapeHtml(String(reason))}</li>`).join("")}</ul>`
+                    : `<div class="muted">No reasons</div>`
+                }
+              </div>
+              <div class="mini-card">
+                <h3>Action Text</h3>
+                <textarea readonly>${escapeHtml(actionText)}</textarea>
+              </div>
+              <div class="mini-card">
+                <h3>Debug Math (raw)</h3>
+                <pre>${escapeJsonBlock(solSystem?.snapshot?.debugMath ?? null)}</pre>
+              </div>
+            </div>
+            <div class="copy-row">
+              <button class="copy-btn" type="button" data-copy-source="triggers">Copy Triggers</button>
+              <button class="copy-btn" type="button" data-copy-source="reasons">Copy Reasons</button>
+              <button class="copy-btn" type="button" data-copy-source="actionText">Copy Action Text</button>
+              <button class="copy-btn" type="button" data-copy-source="debug">Copy Debug Math</button>
+              <button class="copy-btn" type="button" data-copy-source="summary">Copy Full Summary JSON</button>
+              <span id="operatorCopyStatus" class="copy-status">${escapeHtml(copyStatus)}</span>
+            </div>
+          </section>
+        `;
+      }
+      // OPERATOR_ACTION_PANEL_END
 
       function renderShortlist(shortlist) {
         const items = Array.isArray(shortlist?.selected) ? shortlist.selected : [];
@@ -1380,7 +1633,7 @@
           </section>`;
       }
 
-      function render(regime, pools, shortlist, plans, allocation, alerts, performance, portfolio) {
+      function render(regime, pools, shortlist, plans, allocation, alerts, performance, portfolio, positionsSummary) {
         const app = document.getElementById("app");
         const updatedAt = document.getElementById("updatedAt");
         const status = document.getElementById("status");
@@ -1424,6 +1677,7 @@
           </section>
 
           ${renderPortfolioSystems(portfolio)}
+          ${renderOperatorActionPanel(positionsSummary)}
           ${renderShortlist(shortlist)}
           ${renderPlans(plans)}
           ${renderAllocation(allocation)}
@@ -1491,6 +1745,19 @@
             load({ manual: true, cacheBust: true });
           });
         });
+
+        app.querySelectorAll("[data-copy-source]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const source = String(btn.getAttribute("data-copy-source") || "summary");
+            const statusEl = document.getElementById("operatorCopyStatus");
+            try {
+              await copyTextValue(operatorCopyPayload(source));
+              if (statusEl) statusEl.textContent = `Copied ${source}`;
+            } catch (err) {
+              if (statusEl) statusEl.textContent = `Copy failed: ${String(err && err.message ? err.message : err)}`;
+            }
+          });
+        });
       }
 
       async function fetchJson(url, cacheBustTs) {
@@ -1514,7 +1781,11 @@
           refreshBtn.textContent = "Refreshing...";
         }
         try {
-          const [regime, pools, shortlist, plans, allocation, alerts, performance, portfolio] = await Promise.all([
+          const operatorWallet = String((operatorWalletInputOrca?.value || runtimeState.operatorWallet || "").trim());
+          runtimeState.operatorWallet = operatorWallet || DEFAULT_OPERATOR_WALLET;
+          persistOrcaOperatorWallet(runtimeState.operatorWallet);
+
+          const [regime, pools, shortlist, plans, allocation, alerts, performance, portfolio, positionsSummary] = await Promise.all([
             fetchJson(REGIME_URL, cacheBustTs),
             fetchJson(POOLS_URL, cacheBustTs),
             fetchJson(SHORTLIST_URL, cacheBustTs).catch(() => ({ selected: [], maxPools: 2 })),
@@ -1522,12 +1793,17 @@
             fetchJson(ALLOCATION_URL, cacheBustTs).catch(() => ({ allocations: [], rationale: [] })),
             fetchJson(ALERTS_URL, cacheBustTs).catch(() => ({ alerts: [] })),
             fetchJson(PERFORMANCE_URL, cacheBustTs).catch(() => ({ summary: { snapshotCount: 0, regimeCounts: { LOW: 0, MODERATE: 0, HIGH: 0 } } })),
-            fetchJson(portfolioIndexUrlForCadence(runtimeState.monitorCadenceHours), cacheBustTs).catch(() => ({ systems: [] }))
+            fetchJson(portfolioIndexUrlForCadence(runtimeState.monitorCadenceHours), cacheBustTs).catch(() => ({ systems: [] })),
+            fetchJson(`${POSITIONS_SUMMARY_URL}?wallet=${encodeURIComponent(runtimeState.operatorWallet)}&mode=summary`, cacheBustTs).catch((err) => ({
+              __error: String(err && err.message ? err.message : err)
+            }))
           ]);
           runtimeState.latestData = { regime, pools, shortlist, plans, allocation, alerts, performance, portfolio };
+          runtimeState.latestPositionsSummary = positionsSummary?.__error ? null : positionsSummary;
+          runtimeState.operatorSummaryError = positionsSummary?.__error ? String(positionsSummary.__error) : null;
           refreshDerivedLivePrices();
           renderLiveSpotHeader();
-          render(regime, pools, shortlist, plans, allocation, alerts, performance, portfolio);
+          render(regime, pools, shortlist, plans, allocation, alerts, performance, portfolio, runtimeState.latestPositionsSummary);
         } catch (err) {
           const msg = String(err && err.message ? err.message : err);
           if (manual && refreshErr) {
@@ -1554,6 +1830,32 @@
       if (refreshLiveSpotBtn) {
         refreshLiveSpotBtn.addEventListener("click", () => {
           loadLiveSpot({ manual: true });
+        });
+      }
+
+      if (operatorModeToggleOrca) {
+        operatorModeToggleOrca.addEventListener("change", () => {
+          runtimeState.operatorModeEnabled = Boolean(operatorModeToggleOrca.checked);
+          persistOrcaOperatorModeState(runtimeState.operatorModeEnabled);
+          render(
+            runtimeState.latestData?.regime || {},
+            runtimeState.latestData?.pools || {},
+            runtimeState.latestData?.shortlist || {},
+            runtimeState.latestData?.plans || {},
+            runtimeState.latestData?.allocation || {},
+            runtimeState.latestData?.alerts || {},
+            runtimeState.latestData?.performance || {},
+            runtimeState.latestData?.portfolio || {},
+            runtimeState.latestPositionsSummary
+          );
+        });
+      }
+
+      if (operatorWalletInputOrca) {
+        operatorWalletInputOrca.addEventListener("change", () => {
+          runtimeState.operatorWallet = String(operatorWalletInputOrca.value || "").trim() || DEFAULT_OPERATOR_WALLET;
+          persistOrcaOperatorWallet(runtimeState.operatorWallet);
+          load({ manual: true, cacheBust: true });
         });
       }
 

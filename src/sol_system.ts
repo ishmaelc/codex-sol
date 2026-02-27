@@ -23,6 +23,7 @@ export type SolSystemSnapshot = {
   capitalGuard: CapitalGuardResult;
   action: string;
   score: SystemScore;
+  scoreObj: SystemScore;
   snapshot: CanonicalSolSystemSnapshot;
 };
 
@@ -119,6 +120,8 @@ export function computeSolSystem(params: {
     capitalGuard,
     action,
     score,
+    // Strict mirror invariant for UI/API compatibility: scoreObj must never diverge from score.
+    scoreObj: score,
     snapshot: nextSnapshot
   };
 }
