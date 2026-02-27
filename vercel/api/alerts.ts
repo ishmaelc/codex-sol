@@ -26,7 +26,13 @@ export default async function handler(req: any, res: any) {
       timeoutMs
     });
     if (result.status === 200) {
-      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+      const degraded = Boolean((result.body as any)?.meta?.degraded);
+      res.setHeader(
+        "Cache-Control",
+        degraded
+          ? "no-store, max-age=0"
+          : "public, max-age=300, stale-while-revalidate=600"
+      );
     }
     return json(res, result.status, result.body);
   } catch (err) {
