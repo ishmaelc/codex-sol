@@ -12,6 +12,8 @@ const refreshOrcaBtn = document.getElementById("refreshOrcaBtn");
 const orcaSummaryStatus = document.getElementById("orcaSummaryStatus");
 const orcaFullTableDetails = document.getElementById("orcaFullTableDetails");
 const orcaSnapshotWrap = document.getElementById("orcaSnapshotWrap");
+const attentionStripWrap = document.getElementById("attentionStripWrap");
+const systemConsolesWrap = document.getElementById("systemConsolesWrap");
 const orcaTableWrap = document.getElementById("orcaTableWrap");
 const operatorPanelWrap = document.getElementById("operatorPanelWrap");
 const summaryCards = document.getElementById("summaryCards");
@@ -48,6 +50,7 @@ let fullPositionsLoadPromise = null;
 let operatorModeEnabled = false;
 let currentMainTab = "portfolio";
 let latestOrcaData = null;
+let latestAlertsPayload = null;
 
 const HEDGE_LINKS = [
   { strategyLabel: "NX8-USDC vs WBTC Short", lpPair: "NX8-USDC", perpSymbol: "WBTC" },
@@ -315,31 +318,36 @@ function renderHedgeQuick(summary, fullPositions) {
     hedgeQuickWrap.innerHTML = `<div class="rewards-empty">No hedge strategies found.</div>`;
     return;
   }
+  const signals = rows.map((row) => hedgeSignal(row.driftPct, row.hedgeRatio));
+  const allOk = signals.every((signal) => signal.label === "OK");
   hedgeQuickWrap.innerHTML = `
-    <table class="summary-table hedge-quick-table">
-      <thead>
-        <tr>
-          <th>Strategy</th>
-          <th>Drift</th>
-          <th>Rebalance Signal</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows
-          .map((row) => {
-            const signal = hedgeSignal(row.driftPct, row.hedgeRatio);
-            const driftClass = Number.isFinite(row.driftPct) ? (Math.abs(row.driftPct) <= 10 ? "pnl-pos" : "pnl-neg") : "";
-            return `
-              <tr>
-                <td>${row.strategyLabel}</td>
-                <td class="${driftClass}">${fmtPct(row.driftPct)}</td>
-                <td class="${signal.className}">${signal.label}</td>
-              </tr>
-            `;
-          })
-          .join("")}
-      </tbody>
-    </table>
+    <details ${allOk ? "" : "open"}>
+      <summary><strong>Hedge Drift:</strong> ${allOk ? "OK" : "Attention required"}</summary>
+      <table class="summary-table hedge-quick-table" style="margin-top:10px;">
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Drift</th>
+            <th>Rebalance Signal</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map((row, idx) => {
+              const signal = signals[idx];
+              const driftClass = Number.isFinite(row.driftPct) ? (Math.abs(row.driftPct) <= 10 ? "pnl-pos" : "pnl-neg") : "";
+              return `
+                <tr>
+                  <td>${row.strategyLabel}</td>
+                  <td class="${driftClass}">${fmtPct(row.driftPct)}</td>
+                  <td class="${signal.className}">${signal.label}</td>
+                </tr>
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    </details>
   `;
 }
 
@@ -412,7 +420,7 @@ function renderOrcaSnapshotCard() {
       ? latestOrcaData.pools.pools
       : [];
   const poolRows = poolRowsRaw.filter((row) => row?.type !== "STABLE-STABLE");
-  const topRows = poolRows.slice(0, 5);
+  const topRows = poolRows.slice(0, 3);
   if (!regime) {
     orcaSnapshotWrap.innerHTML = `
       <div class="section-head"><h2>Orca Snapshot</h2></div>
@@ -492,6 +500,94 @@ function renderOrcaSurfaces() {
   renderOrcaSnapshotCard();
   renderOrcaTable();
 }
+
+function renderAttentionStrip() {
+  if (!attentionStripWrap) return;
+  const attention = latestAlertsPayload?.attention ?? null;
+  const level = String(attention?.level ?? "none").toUpperCase();
+  const triggers = Array.isArray(attention?.triggers) ? attention.triggers.slice(0, 3) : [];
+  const body = triggers.length
+    ? triggers.map((trigger) => `<span class="chip">${escapeHtml(String(trigger))}</span>`).join("")
+    : `<span class="table-note">No active attention</span>`;
+
+  attentionStripWrap.innerHTML = `
+    <div class="section-head">
+      <h2>Attention Strip</h2>
+      <button type="button" id="attentionOpenOperatorBtn">Open Operator</button>
+    </div>
+    <div class="table-note">Level: ${escapeHtml(level)}</div>
+    <div class="toggle-row" style="margin-top:8px;">${body}</div>
+  `;
+  document.getElementById("attentionOpenOperatorBtn")?.addEventListener("click", () => {
+    setMainTab("operator");
+  });
+}
+
+function findSystemForConsole(systemId) {
+  const systemsFromIndex = Array.isArray(latestPortfolioSystems?.systems) ? latestPortfolioSystems.systems : [];
+  const systemsFromAlerts = Array.isArray(latestAlertsPayload?.systems) ? latestAlertsPayload.systems : [];
+  const systems = systemsFromIndex.length ? systemsFromIndex : systemsFromAlerts;
+  return systems.find((system) => String(system?.id ?? system?.systemId ?? "").toLowerCase() === systemId) ?? null;
+}
+
+// SYSTEM_CONSOLES_START
+function renderSystemConsoles() {
+  if (!systemConsolesWrap) return;
+  const systems = [findSystemForConsole("sol_hedged"), findSystemForConsole("nx8_hedged")];
+  const cardHtml = systems.map((system, idx) => {
+    const label = idx === 0 ? "SOL" : "NX8";
+    if (!system) {
+      return `<div class="stat"><h3>${label} System</h3><div class="table-note">Unavailable</div></div>`;
+    }
+    const scoreObj = system?.scoreObj ?? {};
+    const snapshot = system?.snapshot ?? {};
+    const exposures = snapshot?.exposures ?? {};
+    const liq = snapshot?.liquidation ?? {};
+    const range = snapshot?.range ?? {};
+    const guardTriggers = Array.isArray(system?.capitalGuard?.triggers) ? system.capitalGuard.triggers : [];
+    const actionText = guardTriggers.length ? String(guardTriggers[0]) : "No action";
+    return `
+      <div class="stat">
+        <h3>${label} System Console</h3>
+        <table class="summary-table" style="margin-top:8px;">
+          <tbody>
+            <tr>
+              <td>Health Score</td>
+              <td>${Number.isFinite(Number(scoreObj?.score0to100)) ? Number(scoreObj.score0to100).toFixed(0) : "N/A"}</td>
+              <td>Net Delta/Exposure</td>
+              <td>${Number.isFinite(Number(exposures?.netDelta)) ? Number(exposures.netDelta).toFixed(4) : Number.isFinite(Number(exposures?.netSOLDelta)) ? Number(exposures.netSOLDelta).toFixed(4) : "N/A"}</td>
+              <td>Hedge %</td>
+              <td>${Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(2)}%` : "N/A"}</td>
+            </tr>
+            <tr>
+              <td>Liq Buffer %</td>
+              <td>${Number.isFinite(Number(liq?.liqBufferRatio)) ? `${(Number(liq.liqBufferRatio) * 100).toFixed(2)}%` : "N/A"}</td>
+              <td>Range Buffer %</td>
+              <td>${Number.isFinite(Number(range?.rangeBufferRatio)) ? `${(Number(range.rangeBufferRatio) * 100).toFixed(2)}%` : "N/A"}</td>
+              <td>Recommended Action</td>
+              <td>${escapeHtml(actionText)} ${guardTriggers.length ? `<a href="#operator" data-open-operator-inline="1">View Operator</a>` : ""}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  }).join("");
+
+  systemConsolesWrap.innerHTML = `
+    <div class="section-head">
+      <h2>System Consoles</h2>
+      <span class="section-subtle">SOL + NX8 parity</span>
+    </div>
+    <div class="system-console-grid">${cardHtml}</div>
+  `;
+  systemConsolesWrap.querySelectorAll("[data-open-operator-inline='1']").forEach((anchor) => {
+    anchor.addEventListener("click", (event) => {
+      event.preventDefault();
+      setMainTab("operator");
+    });
+  });
+}
+// SYSTEM_CONSOLES_END
 
 // OPERATOR_ACTION_PANEL_START
 // Ordering: engine-provided order (deterministic). UI must not sort.
@@ -920,6 +1016,8 @@ function renderPortfolioSystemsInline() {
 
 function render(summary, fullPositions) {
   renderHedgeQuick(summary, fullPositions);
+  renderAttentionStrip();
+  renderSystemConsoles();
   const perpsPnl = Number(summary?.jupiterPerps?.summary?.pnlUsd ?? 0);
   const liqPnl = Number(summary?.kaminoLiquidity?.pnlUsd ?? 0);
   const liqPnlFarms = Number(summary?.kaminoLiquidity?.pnlUsdFarmsStaked ?? 0);
@@ -1649,9 +1747,10 @@ async function loadSummary() {
   }
 
   try {
-    const [summaryRes, portfolioRes] = await Promise.all([
+    const [summaryRes, portfolioRes, alertsRes] = await Promise.all([
       fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`),
-      fetch(`/data/portfolio/systems_index.json`).catch(() => null)
+      fetch(`/data/portfolio/systems_index.json`).catch(() => null),
+      fetch(`/api/alerts?wallet=${encodeURIComponent(wallet)}`).catch(() => null)
     ]);
     if (!summaryRes.ok) {
       const body = await summaryRes.json().catch(() => ({}));
@@ -1662,6 +1761,11 @@ async function loadSummary() {
 
     if (portfolioRes && portfolioRes.ok) {
       latestPortfolioSystems = await portfolioRes.json().catch(() => null);
+    }
+    if (alertsRes && alertsRes.ok) {
+      latestAlertsPayload = await alertsRes.json().catch(() => null);
+    } else {
+      latestAlertsPayload = null;
     }
 
     render(summary, latestFullPositions);

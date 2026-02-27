@@ -260,6 +260,13 @@ button:hover {
   display: block;
 }
 
+.system-console-grid {
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
 .hidden {
   display: none;
 }
@@ -327,6 +334,17 @@ button:hover {
 
 .pnl-warn {
   color: #ffcb6b;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.76rem;
+  color: var(--text);
+  background: rgba(12, 20, 34, 0.85);
 }
 
 .raw-json {
