@@ -3,6 +3,8 @@ type AnyObj = Record<string, unknown>;
 type AlertsSystemInput = {
   id?: string;
   systemId?: string;
+  label?: string;
+  scoreObj?: AnyObj | null;
   health?: AnyObj | null;
   capitalGuard?: { level?: string | null; triggers?: string[] | null } | null;
   snapshot?: {
@@ -25,7 +27,10 @@ export type AlertsPayload = {
     capitalGuard: { level: string; triggers: string[] };
   };
   systems: Array<{
+    id: string;
     systemId: string;
+    label: string;
+    scoreObj: AnyObj | null;
     health: unknown;
     capitalGuard: unknown;
     snapshot: {
@@ -64,7 +69,10 @@ export function buildAlertsPayload(input: {
   const systems = sortedSystems.map((system) => {
     const systemId = String(system.id ?? system.systemId ?? "");
     return {
+      id: systemId,
       systemId,
+      label: String(system.label ?? systemId),
+      scoreObj: system.scoreObj ?? null,
       health: system.health ?? null,
       capitalGuard: system.capitalGuard ?? null,
       snapshot: {
