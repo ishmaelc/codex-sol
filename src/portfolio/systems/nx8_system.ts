@@ -214,7 +214,7 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
     dataFreshness: {
       hasMarkPrice: btcPrice > 0,
       hasLiqPrice: liqPrice != null,
-      hasRangeBuffer: true
+      hasRangeBuffer: false
     },
     exposures: {
       totalLong: totalLongBase,
@@ -230,7 +230,7 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
     range: {
       rangeLower: null,
       rangeUpper: null,
-      rangeBufferRatio: 0
+      rangeBufferRatio: null
     },
     basisRisk: {
       isProxyHedge: true,
@@ -239,7 +239,7 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
     },
     debugMath: {
       liqBufferRatio,
-      rangeBufferRatio: 0,
+      rangeBufferRatio: null,
       hedgeRatio,
       netDelta,
       hedgeScoreInputLeverage: liqPrice == null ? null : leverage,

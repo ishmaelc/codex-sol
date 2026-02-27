@@ -16,7 +16,10 @@ export function normalizeSnapshot(snapshot: CanonicalSystemSnapshot): CanonicalS
   const mark = toFiniteOrNull(snapshot.pricesUsed.mark);
   const liqPriceRaw = toFiniteOrNull(snapshot.liquidation.liqPrice);
   const liqPrice = liqPriceRaw != null && liqPriceRaw > 0 ? liqPriceRaw : null;
-  const rangeBufferRatio = clampRatio01(snapshot.range.rangeBufferRatio);
+  const rangeLower = toFiniteOrNull(snapshot.range.rangeLower);
+  const rangeUpper = toFiniteOrNull(snapshot.range.rangeUpper);
+  const hasBounds = rangeLower != null && rangeUpper != null;
+  const rangeBufferRatio = hasBounds ? clampRatio01(snapshot.range.rangeBufferRatio) : null;
   const liqBufferRatio = clampRatio01(snapshot.liquidation.liqBufferRatio);
   const hedgeRatio = clampRatio01(snapshot.exposures.hedgeRatio) ?? 0;
   const leverage = toFiniteOrNull(snapshot.liquidation.leverage);
