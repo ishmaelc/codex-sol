@@ -323,8 +323,12 @@ function renderSystemConsoles() {
     const liq = snapshot?.liquidation ?? {};
     const range = snapshot?.range ?? {};
     const freshness = snapshot?.dataFreshness ?? {};
+    const scoreReasons = Array.isArray(scoreObj?.reasons) ? scoreObj.reasons : [];
     const snapshotReasons = Array.isArray(snapshot?.reasons) ? snapshot.reasons : [];
+    const reasons = scoreReasons.length ? scoreReasons : snapshotReasons;
     const guardTriggers = Array.isArray(system?.capitalGuard?.triggers) ? system.capitalGuard.triggers : [];
+    const systemIdUpper = String(system?.id ?? system?.systemId ?? "").toUpperCase();
+    const isNx8 = systemIdUpper.includes("NX8");
     const hasMark = freshness?.hasMarkPrice === true;
     const hasLiq = freshness?.hasLiqPrice === true && liq?.liqBufferRatio != null;
     const hasRange = freshness?.hasRangeBuffer === true && range?.rangeBufferRatio != null;
@@ -333,13 +337,14 @@ function renderSystemConsoles() {
       : "N/A";
     const hedgeText = hasMark && Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(2)}%` : "N/A";
     const liqText = hasLiq ? `${(Number(liq.liqBufferRatio) * 100).toFixed(2)}%` : "N/A";
-    const rangeText = hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(2)}%` : "N/A";
-    const hasMissingData = snapshotReasons.includes("MISSING_DATA");
+    const rangeText = isNx8 && !hasRange ? "Managed / N/A" : hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(2)}%` : "N/A";
+    const rangeLabel = isNx8 && !hasRange ? "Range" : "Range Buffer %";
+    const hasMissingData = reasons.includes("MISSING_DATA");
     const actionText = hasMissingData ? "MISSING_DATA" : guardTriggers.length ? String(guardTriggers[0]) : "No action";
     const showOperatorLink = hasMissingData || guardTriggers.length > 0;
     return `
       <div class="stat">
-        <h3>${label} System Console</h3>
+        <h3>${label} System Console ${isNx8 ? `<span class="chip">Kamino (auto-rebalanced)</span>` : ""}</h3>
         <table class="summary-table" style="margin-top:8px;">
           <tbody>
             <tr>
@@ -353,7 +358,7 @@ function renderSystemConsoles() {
             <tr>
               <td>Liq Buffer %</td>
               <td>${liqText}</td>
-              <td>Range Buffer %</td>
+              <td>${rangeLabel}</td>
               <td>${rangeText}</td>
               <td>Recommended Action</td>
               <td>${escapeHtml(actionText)} ${showOperatorLink ? `<a href="#operator" data-open-operator-inline="1">View Operator</a>` : ""}</td>
@@ -440,6 +445,7 @@ function renderOperatorPanel(summary) {
   const reasons = getOperatorReasons(solSystem);
   const triggers = Array.isArray(solSystem?.capitalGuard?.triggers) ? solSystem.capitalGuard.triggers : [];
   const actionText = operatorCopyPayload("actionText", summary);
+  const deepDiveSnapshot = JSON.stringify(solSystem?.snapshot ?? null, null, 2);
 
   operatorPanelWrap.innerHTML = `
     <div class="table-note">Display-only canonical controls from <code>/api/positions?mode=summary</code>.</div>
@@ -458,6 +464,10 @@ function renderOperatorPanel(summary) {
     <textarea id="operatorActionText" class="raw-json" readonly>${escapeHtml(actionText)}</textarea>
     <h4 class="table-subhead">Debug Math (raw)</h4>
     <pre class="raw-json">${escapeHtml(JSON.stringify(solSystem?.snapshot?.debugMath ?? null, null, 2))}</pre>
+    <details style="margin-top:10px;">
+      <summary><strong>SOL Deep Dive (canonical snapshot)</strong></summary>
+      <pre class="raw-json" style="margin-top:8px;">${escapeHtml(deepDiveSnapshot)}</pre>
+    </details>
     <div class="toggle-row" style="margin-top:10px;">
       <button type="button" id="copyOperatorTriggersBtn">Copy Triggers</button>
       <button type="button" id="copyOperatorReasonsBtn">Copy Reasons</button>
@@ -491,40 +501,6 @@ function applyOperatorMode() {
   if (operatorModeEnabled) {
     setMainTab("operator");
   }
-}
-
-function renderSolSystemCard(system) {
-  if (!system) {
-    return `<section class="card"><h2>SOL System Console</h2><div class="rewards-empty">SOL system snapshot unavailable.</div></section>`;
-  }
-
-  const health = Number(system.healthScore);
-  const scoreClass = Number.isFinite(health) ? (health >= 80 ? "pnl-pos" : health >= 60 ? "pnl-warn" : "pnl-neg") : "";
-  const hedgePct = Number(system.hedgeCoveragePct);
-  const liqPct = Number(system.liqBufferPct);
-  const rangePct = Number(system.rangeBufferPct);
-
-  return `
-    <section class="card">
-      <div class="section-head">
-        <h2>SOL System Console</h2>
-        <span class="section-subtle">Aggregated hedge health</span>
-      </div>
-      <div class="stat">
-        <h3>Health Score</h3>
-        <p class="${scoreClass}" style="font-size:1.8rem;">${Number.isFinite(health) ? health.toFixed(0) : "n/a"}</p>
-      </div>
-      <table class="summary-table" style="margin-top:12px;">
-        <tbody>
-          <tr><td>Net SOL</td><td>${fmtTokenAmount(system.netSol)}</td></tr>
-          <tr><td>Hedge %</td><td>${Number.isFinite(hedgePct) ? `${(hedgePct * 100).toFixed(2)}%` : "n/a"}</td></tr>
-          <tr><td>Liq buffer %</td><td>${Number.isFinite(liqPct) ? `${(liqPct * 100).toFixed(2)}%` : "n/a"}</td></tr>
-          <tr><td>Range buffer %</td><td>${Number.isFinite(rangePct) ? `${(rangePct * 100).toFixed(2)}%` : "n/a"}</td></tr>
-          <tr><td>Recommended Action</td><td>${system.action ?? "No action"}</td></tr>
-        </tbody>
-      </table>
-    </section>
-  `;
 }
 
 function inferPerpSymbol(mint) {
@@ -719,6 +695,7 @@ function renderMetaStatus(summary) {
   const degraded = Boolean(meta?.degraded);
   if (!degraded) {
     dataStatusPill.textContent = "LIVE";
+    dataStatusPill.classList.remove("status-pill-warning");
     degradedBanner.classList.add("hidden");
     degradedBanner.innerHTML = "";
     return;
@@ -728,6 +705,7 @@ function renderMetaStatus(summary) {
   const errorCode = String(meta?.errorCode ?? "ERROR");
   const reasons = Array.isArray(meta?.reasons) ? meta.reasons : [];
   dataStatusPill.textContent = "DEGRADED (cached)";
+  dataStatusPill.classList.add("status-pill-warning");
   degradedBanner.classList.remove("hidden");
   degradedBanner.innerHTML = `
     <div class="table-note">
@@ -994,14 +972,7 @@ function render(summary, fullPositions) {
         .join("")
     : `<tr><td colspan="13" class="rewards-empty">No farming/liquidity strategy rows found.</td></tr>`;
 
-  if (operatorModeEnabled) {
-    summaryCards.innerHTML = `${renderSolSystemCard(summary?.solSystem)}`;
-    applyOperatorMode();
-    return;
-  }
-
   summaryCards.innerHTML = `
-    ${renderSolSystemCard(summary?.solSystem)}
     <table class="summary-table">
       <thead>
         <tr>

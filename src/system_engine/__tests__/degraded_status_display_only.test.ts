@@ -19,4 +19,18 @@ test("degraded status block stays display-only (no math/sort recomputation)", ()
   for (const pattern of forbiddenPatterns) {
     assert.equal(block.includes(pattern), false, `degraded status block must not contain: ${pattern}`);
   }
+
+  assert.equal(block.includes("meta?.degraded"), true, "degraded status must be driven by summary.meta.degraded");
+  assert.equal(block.includes("DEGRADED (cached)"), true, "degraded status must render DEGRADED (cached) text");
+  assert.equal(block.includes("fallback:"), true, "degraded details must include fallback source text");
+});
+
+test("main UI contains no Hedge Drift section text", () => {
+  const indexPath = path.resolve(process.cwd(), "public/index.html");
+  const appPath = path.resolve(process.cwd(), "public/app.js");
+  const indexSrc = fs.readFileSync(indexPath, "utf8");
+  const appSrc = fs.readFileSync(appPath, "utf8");
+
+  assert.equal(indexSrc.includes("Hedge Drift"), false, "index.html should not render Hedge Drift text");
+  assert.equal(appSrc.includes("Hedge Drift"), false, "app.js should not render Hedge Drift text");
 });

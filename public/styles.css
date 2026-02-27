@@ -179,6 +179,17 @@ body {
   box-shadow: 0 0 12px rgba(102, 224, 208, 0.7);
 }
 
+.status-pill.status-pill-warning {
+  border-color: rgba(255, 205, 109, 0.45);
+  color: #ffe7bd;
+  background: rgba(60, 42, 12, 0.6);
+}
+
+.status-pill.status-pill-warning::before {
+  background: #ffcb6b;
+  box-shadow: 0 0 12px rgba(255, 203, 107, 0.7);
+}
+
 .control-row {
   display: grid;
   grid-template-columns: 1fr auto;
