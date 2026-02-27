@@ -58,7 +58,7 @@ function extractNx8FromStrategyValuations(
   return { nx8KaminoQty, nx8PriceUsd };
 }
 
-async function fetchBtcPerpExposureFromApi(): Promise<{
+async function fetchBtcPerpExposureFromApi(wallet: string | null): Promise<{
   nx8LongQty: number | null;
   nx8PriceUsd: number | null;
   shortBtcQty: number | null;
@@ -68,9 +68,8 @@ async function fetchBtcPerpExposureFromApi(): Promise<{
   markPrice: number | null;
   liqBufferPct: number | null;
 } | null> {
-  const wallet = process.env.PORTFOLIO_WALLET;
   if (!wallet) return null;
-  const baseUrl = process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:3000";
+  const baseUrl = process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:8787";
   const url = `${baseUrl.replace(/\/$/, "")}/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`;
   const wbtcMint = "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh";
   const nx8Mint = "NX8DuAWprqWAYDvpkkuhKnPfGRXQQhgiw85pCkgvFYk";
@@ -155,14 +154,15 @@ async function fetchBtcPerpExposureFromApi(): Promise<{
   }
 }
 
-export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: number }): Promise<HedgedSystemSnapshot> {
+export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: number; wallet?: string }): Promise<HedgedSystemSnapshot> {
   const operatorMode = getOperatorMode(normalizeCadenceHours(context?.monitorCadenceHours));
   const baseDir = path.resolve(process.cwd(), "public/data/orca");
   const [rankings, regime] = await Promise.all([
     readJson<Record<string, unknown>>(path.join(baseDir, "pool_rankings.json")),
     readJson<Record<string, unknown>>(path.join(baseDir, "regime_state.json"))
   ]);
-  const btcPerp = await fetchBtcPerpExposureFromApi();
+  const wallet = context?.wallet ?? process.env.PORTFOLIO_WALLET ?? null;
+  const btcPerp = await fetchBtcPerpExposureFromApi(wallet);
 
   const spotNx8 = btcPerp?.nx8PriceUsd ?? Number(process.env.PORTFOLIO_NX8_PRICE_USD ?? 0);
   const nx8Long = btcPerp?.nx8LongQty ?? Number(process.env.PORTFOLIO_NX8_LONG_UNITS ?? 0);
@@ -199,9 +199,15 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
   const stabilityScore = computeStabilityScore({ volumeTvl, depth1pctUsd, feeApr, regimeConfidence });
   const breakdown = computeSystemScore({ deltaScore, hedgeScore, rangeScore, stabilityScore });
 
-  const riskFlags: RiskFlags = ["PROXY_HEDGE", "MISSING_DATA"];
+  const riskFlags: RiskFlags = ["PROXY_HEDGE"];
+  const missingReasons: string[] = [];
+  if ((nx8Notional ?? 0) <= 0) missingReasons.push("MISSING_NX8_NOTIONAL");
+  if ((btcNotional ?? 0) <= 0) missingReasons.push("MISSING_WBTC_SHORT_NOTIONAL");
+  if ((btcPrice ?? 0) <= 0) missingReasons.push("MISSING_WBTC_MARK_PRICE");
+  if (liqPrice == null) missingReasons.push("MISSING_WBTC_LIQ_PRICE");
+  if (missingReasons.length > 0) riskFlags.push("MISSING_DATA");
   if (operatorMode.monitorCadenceHours === 48) riskFlags.push("LOW_MONITORING");
-  const reasons = Array.from(new Set(riskFlags));
+  const reasons = Array.from(new Set([...riskFlags, ...missingReasons]));
   const liqBufferRatio = Number.isFinite(Number(liqBufferPct)) ? Number(liqBufferPct) / 100 : null;
   const hedgeRatio = (nx8Notional ?? 0) > 0 && (btcNotional ?? 0) > 0 ? Math.abs((btcNotional ?? 0) / (nx8Notional ?? 1)) : 0;
   const canonicalSnapshot: CanonicalSystemSnapshot = {
@@ -266,7 +272,7 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
     liqBufferPct,
     score: breakdown.weighted,
     breakdown,
-    riskFlags: reasons,
+    riskFlags,
     canonicalLabel: mapStatusToLabel(breakdown.status),
     canonicalScore,
     canonicalSnapshot,

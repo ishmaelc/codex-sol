@@ -495,6 +495,9 @@ function renderSystemConsoles() {
     const scoreReasons = Array.isArray(scoreObj?.reasons) ? scoreObj.reasons : [];
     const snapshotReasons = Array.isArray(snapshot?.reasons) ? snapshot.reasons : [];
     const reasons = scoreReasons.length ? scoreReasons : snapshotReasons;
+    const missingReasons = reasons
+      .map((reason) => String(reason))
+      .filter((reason) => reason.startsWith("MISSING_") && reason !== "MISSING_DATA");
     const guardTriggers = Array.isArray(system?.capitalGuard?.triggers) ? system.capitalGuard.triggers : [];
     const systemIdUpper = String(system?.id ?? system?.systemId ?? "").toUpperCase();
     const isNx8 = systemIdUpper.includes("NX8");
@@ -519,6 +522,11 @@ function renderSystemConsoles() {
       reasons.includes("MISSING_DATA") ? `<span class="chip">MISSING_DATA</span>` : "",
       (reasons.includes("PROXY_HEDGE") || snapshot?.basisRisk?.isProxyHedge === true) ? `<span class="chip">PROXY_HEDGE</span>` : ""
     ].filter(Boolean);
+    const missingWhy = missingReasons.length
+      ? `<details style="margin-top:6px;"><summary class="table-note">Why missing</summary><div class="table-note">${missingReasons
+          .map((reason) => escapeHtml(reason))
+          .join(" | ")}</div></details>`
+      : "";
     return {
       label,
       scoreChip: `${scoreText} • ${scoreLabel}`,
@@ -529,7 +537,7 @@ function renderSystemConsoles() {
       range: rangeText,
       basisRisk: reasons.includes("PROXY_HEDGE") ? `<span class="chip">PROXY_HEDGE</span>` : dash,
       action: actionText,
-      dataFlags: dataBadges.length ? dataBadges.join(" ") : dash
+      dataFlags: dataBadges.length ? `${dataBadges.join(" ")}${missingWhy}` : dash
     };
   });
   const sol = rendered[0];

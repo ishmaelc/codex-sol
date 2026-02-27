@@ -41,17 +41,16 @@ function asNumLoose(v: unknown): number | null {
 
 const PERP_FETCH_TIMEOUT_MS = Number(process.env.PORTFOLIO_FETCH_TIMEOUT_MS ?? 8000);
 
-async function fetchPerpExposureFromApi(): Promise<{
+async function fetchPerpExposureFromApi(wallet: string | null): Promise<{
   shortSolQty: number | null;
   shortSolNotionalUsd: number | null;
   leverage: number | null;
   liqPrice: number | null;
   markPrice: number | null;
 } | null> {
-  const wallet = process.env.PORTFOLIO_WALLET;
   if (!wallet) return null;
   const solMint = "So11111111111111111111111111111111111111112";
-  const baseUrl = process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:3000";
+  const baseUrl = process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:8787";
   const url = `${baseUrl.replace(/\/$/, "")}/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PERP_FETCH_TIMEOUT_MS);
@@ -101,7 +100,7 @@ async function fetchPerpExposureFromApi(): Promise<{
   }
 }
 
-export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: number }): Promise<HedgedSystemSnapshot> {
+export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: number; wallet?: string }): Promise<HedgedSystemSnapshot> {
   const operatorMode = getOperatorMode(normalizeCadenceHours(context?.monitorCadenceHours));
   const baseDir = path.resolve(process.cwd(), "public/data/orca");
   const [plans, shortlist, rankings, regime] = await Promise.all([
@@ -135,7 +134,8 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
     flags.push("MISSING_DATA");
   }
 
-  const perp = await fetchPerpExposureFromApi();
+  const wallet = context?.wallet ?? process.env.PORTFOLIO_WALLET ?? null;
+  const perp = await fetchPerpExposureFromApi(wallet);
   let totalShortSol = perp?.shortSolQty ?? 0;
   if (!perp) {
     totalShortSol = solPer10k != null ? solPer10k * deployUnits : 0;

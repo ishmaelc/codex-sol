@@ -111,5 +111,5 @@ export type CanonicalSystemSnapshot = {
 export type HedgedSystemDefinition = {
   id: string;
   label: string;
-  buildSnapshot: (context?: { monitorCadenceHours?: number }) => Promise<HedgedSystemSnapshot>;
+  buildSnapshot: (context?: { monitorCadenceHours?: number; wallet?: string }) => Promise<HedgedSystemSnapshot>;
 };
