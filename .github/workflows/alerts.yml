@@ -42,6 +42,7 @@ jobs:
       - name: Run alerts runner
         env:
           ALERTS_URL: ${{ secrets.ALERTS_URL }}
+          ALERTS_WALLET: ${{ secrets.ALERTS_WALLET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CONSOLE_URL: ${{ secrets.CONSOLE_URL }}

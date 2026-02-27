@@ -84,15 +84,33 @@ async function sendTelegram({ botToken, chatId, text }) {
   }
 }
 
+function buildAlertsRequestUrl(rawUrl, walletFromEnv) {
+  const url = new URL(rawUrl);
+  const walletInUrl = String(url.searchParams.get("wallet") ?? "").trim();
+  const wallet = String(walletFromEnv ?? "").trim();
+  if (!walletInUrl && wallet) {
+    url.searchParams.set("wallet", wallet);
+  }
+  return url;
+}
+
 async function main() {
   const alertsUrl = requireEnv("ALERTS_URL");
   const botToken = requireEnv("TELEGRAM_BOT_TOKEN");
   const chatId = requireEnv("TELEGRAM_CHAT_ID");
+  const wallet = process.env.ALERTS_WALLET;
   const stateFile = path.resolve(process.env.ALERTS_STATE_FILE || ".alerts_state.json");
+  const requestUrl = buildAlertsRequestUrl(alertsUrl, wallet);
 
-  const res = await fetch(alertsUrl, { method: "GET" });
+  const res = await fetch(requestUrl, { method: "GET" });
   if (!res.ok) {
-    throw new Error(`Failed to fetch ALERTS_URL: HTTP ${res.status}`);
+    const body = await res.text().catch(() => "");
+    if (res.status === 400 && body.includes("MISSING_WALLET")) {
+      throw new Error(
+        "Failed to fetch alerts payload: missing wallet. Set ALERTS_WALLET secret or include ?wallet=<pubkey> in ALERTS_URL."
+      );
+    }
+    throw new Error(`Failed to fetch ALERTS_URL: HTTP ${res.status}${body ? ` - ${body.slice(0, 200)}` : ""}`);
   }
 
   const payload = await res.json();
