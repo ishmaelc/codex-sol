@@ -5,12 +5,20 @@ const statusEl = document.getElementById("status");
 const tabPortfolioMain = document.getElementById("tabPortfolioMain");
 const tabOrcaMain = document.getElementById("tabOrcaMain");
 const tabOperatorMain = document.getElementById("tabOperatorMain");
+const tabWalletMain = document.getElementById("tabWalletMain");
 const tabPortfolioSection = document.getElementById("tab-portfolio");
 const tabOrcaSection = document.getElementById("tab-orca");
 const tabOperatorSection = document.getElementById("tab-operator");
+const tabWalletSection = document.getElementById("tab-wallet");
 const refreshOrcaBtn = document.getElementById("refreshOrcaBtn");
 const orcaSummaryStatus = document.getElementById("orcaSummaryStatus");
 const orcaFullTableDetails = document.getElementById("orcaFullTableDetails");
+const refreshWalletBtn = document.getElementById("refreshWalletBtn");
+const walletSummaryStatus = document.getElementById("walletSummaryStatus");
+const walletTokensSummary = document.getElementById("walletTokensSummary");
+const walletPositionsSummary = document.getElementById("walletPositionsSummary");
+const walletRewardsSummary = document.getElementById("walletRewardsSummary");
+const walletHeadlinesWrap = document.getElementById("walletHeadlinesWrap");
 const orcaSnapshotWrap = document.getElementById("orcaSnapshotWrap");
 const attentionStripWrap = document.getElementById("attentionStripWrap");
 const systemConsolesWrap = document.getElementById("systemConsolesWrap");
@@ -19,13 +27,11 @@ const operatorPanelWrap = document.getElementById("operatorPanelWrap");
 const summaryCards = document.getElementById("summaryCards");
 const walletTokensWrap = document.getElementById("walletTokensWrap");
 const rewardsTableWrap = document.getElementById("rewardsTableWrap");
-const rawJson = document.getElementById("rawJson");
-const overviewView = document.getElementById("overviewView");
 const dataStatusPill = document.getElementById("dataStatusPill");
 const degradedBanner = document.getElementById("degradedBanner");
-const walletTokensCard = walletTokensWrap?.closest("section.card");
-const rewardsCard = rewardsTableWrap?.closest("section.card");
-const rawSummaryCard = rawJson?.closest("section.card");
+const walletTokensDetails = document.getElementById("walletTokensDetails");
+const walletPositionsDetails = document.getElementById("walletPositionsDetails");
+const walletRewardsDetails = document.getElementById("walletRewardsDetails");
 
 const OPERATOR_MODE_KEY = "operatorModeEnabled";
 const MAIN_TAB_KEY = "mainDashboardTab";
@@ -43,6 +49,7 @@ let operatorModeEnabled = false;
 let currentMainTab = "portfolio";
 let latestOrcaData = null;
 let latestAlertsPayload = null;
+let walletDataLoaded = false;
 
 function loadOperatorModeState() {
   try {
@@ -73,9 +80,9 @@ function escapeHtml(value) {
 function loadMainTabState() {
   try {
     const fromHash = String(window.location.hash || "").replace(/^#/, "").toLowerCase();
-    if (fromHash === "portfolio" || fromHash === "orca" || fromHash === "operator") return fromHash;
+    if (fromHash === "portfolio" || fromHash === "orca" || fromHash === "operator" || fromHash === "wallet") return fromHash;
     const stored = String(localStorage.getItem(MAIN_TAB_KEY) || "").toLowerCase();
-    if (stored === "portfolio" || stored === "orca" || stored === "operator") return stored;
+    if (stored === "portfolio" || stored === "orca" || stored === "operator" || stored === "wallet") return stored;
   } catch {}
   return "portfolio";
 }
@@ -144,18 +151,21 @@ function deriveLendPairLabel(ob) {
 }
 
 function setMainTab(tab, options = {}) {
-  const next = tab === "orca" || tab === "operator" ? tab : "portfolio";
+  const next = tab === "orca" || tab === "operator" || tab === "wallet" ? tab : "portfolio";
   currentMainTab = next;
   setHidden(tabPortfolioSection, next !== "portfolio");
   setHidden(tabOrcaSection, next !== "orca");
   setHidden(tabOperatorSection, next !== "operator");
+  setHidden(tabWalletSection, next !== "wallet");
   tabPortfolioMain?.classList.toggle("is-active", next === "portfolio");
   tabOrcaMain?.classList.toggle("is-active", next === "orca");
   tabOperatorMain?.classList.toggle("is-active", next === "operator");
+  tabWalletMain?.classList.toggle("is-active", next === "wallet");
   if (!options.skipHash) window.location.hash = `#${next}`;
   persistMainTabState(next);
   if ((next === "portfolio" || next === "orca") && !latestOrcaData) void ensureOrcaDataLoaded();
   if (next === "operator") renderOperatorPanel(latestSummary);
+  if (next === "wallet") void ensureWalletDataLoaded();
 }
 
 async function loadOrcaData(options = {}) {
@@ -308,15 +318,99 @@ function findSystemForConsole(systemId) {
   return systems.find((system) => String(system?.id ?? system?.systemId ?? "").toLowerCase() === systemId) ?? null;
 }
 
-// SYSTEM_CONSOLES_START
+function computeWalletHeadlineValues(summary) {
+  const strategyValuations = summary?.kaminoLiquidity?.strategyValuations ?? [];
+  const solPriceFromStrategies = strategyValuations
+    .map((s) => {
+      if (s?.tokenASymbol === "SOL") return Number(s?.tokenAPriceUsd);
+      if (s?.tokenBSymbol === "SOL") return Number(s?.tokenBPriceUsd);
+      return NaN;
+    })
+    .find((v) => Number.isFinite(v));
+
+  const walletTokens = summary?.spot?.tokens ?? [];
+  const knownSolSpotUsd = Number.isFinite(solPriceFromStrategies) ? Number(summary?.spot?.nativeSol || 0) * solPriceFromStrategies : NaN;
+  const stableSymbols = new Set(["USDC", "USDG", "USDS"]);
+  const lendTokenPricesByMint = new Map((summary?.kaminoLend?.tokenPrices?.byMint ?? []).map((r) => [String(r.mint), Number(r.priceUsd)]));
+  const lendTokenPricesBySymbol = new Map(
+    (summary?.kaminoLend?.tokenPrices?.bySymbol ?? []).map((r) => [String(r.symbol ?? "").toUpperCase(), Number(r.priceUsd)])
+  );
+  const strategyTokenPrice = (symbol, mint) => {
+    for (const s of strategyValuations) {
+      if (symbol === s?.tokenASymbol || mint === s?.tokenAMint) return Number(s?.tokenAPriceUsd) || null;
+      if (symbol === s?.tokenBSymbol || mint === s?.tokenBMint) return Number(s?.tokenBPriceUsd) || null;
+    }
+    return null;
+  };
+  const tokenPriceUsd = (symbol, mint) => {
+    if (symbol === "SOL" || mint === "So11111111111111111111111111111111111111112") return Number.isFinite(solPriceFromStrategies) ? solPriceFromStrategies : null;
+    if (stableSymbols.has(symbol)) return 1;
+    const byMint = lendTokenPricesByMint.get(String(mint ?? ""));
+    if (Number.isFinite(byMint) && byMint > 0) return byMint;
+    const bySymbol = lendTokenPricesBySymbol.get(String(symbol ?? "").toUpperCase());
+    if (Number.isFinite(bySymbol) && bySymbol > 0) return bySymbol;
+    return strategyTokenPrice(symbol, mint);
+  };
+  const knownSplSpotUsd = walletTokens.reduce((acc, t) => {
+    const px = tokenPriceUsd(t.symbol, t.mint);
+    return acc + (px == null ? 0 : Number(t.amountUi || 0) * px);
+  }, 0);
+  const walletSpotKnownUsd = (Number.isFinite(knownSolSpotUsd) ? knownSolSpotUsd : 0) + knownSplSpotUsd;
+  const perpsValueUsd = Number(summary?.jupiterPerps?.summary?.valueUsd ?? NaN);
+  const lendValueUsd = Number(summary?.kaminoLend?.netValueUsd ?? NaN);
+  const liqFarmsValueUsd = Number(summary?.kaminoLiquidity?.valueUsdFarmsStaked ?? NaN);
+  const orcaWhirlpoolsValueUsd = Number(summary?.kaminoLiquidity?.orcaWhirlpoolsValueUsd ?? summary?.orcaWhirlpools?.valueUsd ?? NaN);
+  const liqPlusOrcaValueUsd = Number.isFinite(Number(summary?.kaminoLiquidity?.valueUsdFarmsStakedWithOrca))
+    ? Number(summary.kaminoLiquidity.valueUsdFarmsStakedWithOrca)
+    : liqFarmsValueUsd + orcaWhirlpoolsValueUsd;
+  const positionsTotalUsd = perpsValueUsd + lendValueUsd + liqPlusOrcaValueUsd;
+  const claimableValueUsd = Number(summary?.kaminoLiquidity?.rewards?.claimableValueUsd ?? NaN);
+
+  return {
+    totalWalletValueUsd: Number.isFinite(walletSpotKnownUsd) && Number.isFinite(positionsTotalUsd) ? walletSpotKnownUsd + positionsTotalUsd : null,
+    totalClaimableRewardsUsd: Number.isFinite(claimableValueUsd) ? claimableValueUsd : null
+  };
+}
+
+function renderWalletHeadlines(summary) {
+  if (!walletHeadlinesWrap) return;
+  const values = computeWalletHeadlineValues(summary);
+  const totalWallet = values.totalWalletValueUsd == null ? "—" : fmtUsd(values.totalWalletValueUsd);
+  const claimable = values.totalClaimableRewardsUsd == null ? "—" : fmtUsd(values.totalClaimableRewardsUsd);
+  walletHeadlinesWrap.innerHTML = `
+    <div class="section-head">
+      <h2>Wallet Headlines</h2>
+      <span class="section-subtle">Inventory snapshot</span>
+    </div>
+    <div class="headlines-grid">
+      <div class="headline-stat"><div class="label">Total Wallet Value</div><div class="value">${escapeHtml(totalWallet)}</div></div>
+      <div class="headline-stat"><div class="label">Total Claimable Rewards</div><div class="value">${escapeHtml(claimable)}</div></div>
+    </div>
+  `;
+}
+
+// SYSTEM_CONSOLES_TABLE_START
 function renderSystemConsoles() {
   if (!systemConsolesWrap) return;
-  const systems = [findSystemForConsole("sol_hedged"), findSystemForConsole("nx8_hedged")];
+  const systems = [
+    { id: "sol_hedged", label: "SOL" },
+    { id: "nx8_hedged", label: "NX8" }
+  ].map((meta) => ({ meta, system: findSystemForConsole(meta.id) }));
   const dash = "—";
-  const cardHtml = systems.map((system, idx) => {
-    const label = idx === 0 ? "SOL" : "NX8";
+  const rendered = systems.map(({ system, meta }) => {
+    const label = meta.label;
     if (!system) {
-      return `<div class="stat"><h3>${label} System</h3><div class="table-note">Unavailable</div></div>`;
+      return {
+        label,
+        scoreChip: dash,
+        managedBadge: "",
+        netDelta: dash,
+        hedge: dash,
+        liq: dash,
+        range: label === "NX8" ? "Managed" : dash,
+        basisRisk: dash,
+        action: "No action"
+      };
     }
     const scoreObj = system?.scoreObj ?? {};
     const snapshot = system?.snapshot ?? {};
@@ -347,39 +441,57 @@ function renderSystemConsoles() {
     const actionText = hasMissingData ? "MISSING_DATA" : guardTriggers.length ? String(guardTriggers[0]) : "No action";
     const scoreText = Number.isFinite(Number(scoreObj?.score0to100)) ? Number(scoreObj.score0to100).toFixed(0) : dash;
     const scoreLabel = String(scoreObj?.label ?? "N/A").toUpperCase();
-    const proxyHedgeBadge = reasons.includes("PROXY_HEDGE")
-      ? `<div class="system-console-row"><span class="label">Basis Risk</span><span class="value"><span class="chip">PROXY_HEDGE</span></span></div>`
-      : "";
-    return `
-      <div class="stat system-console-card">
-        <div class="system-console-head">
-          <div class="system-console-title">
-            <h3>${label}</h3>
-            ${isNx8 ? `<span class="chip">Kamino (auto-rebalanced)</span>` : ""}
-          </div>
-          <span class="chip">${escapeHtml(scoreText)} • ${escapeHtml(scoreLabel)}</span>
-        </div>
-        <div class="system-console-grid-rows">
-          <div class="system-console-row"><span class="label">Net Delta/Exposure</span><span class="value">${escapeHtml(netDeltaText)}</span></div>
-          <div class="system-console-row"><span class="label">Hedge %</span><span class="value">${escapeHtml(hedgeText)}</span></div>
-          <div class="system-console-row"><span class="label">Liq Buffer</span><span class="value">${escapeHtml(liqText)}</span></div>
-          <div class="system-console-row"><span class="label">Range</span><span class="value">${escapeHtml(rangeText)}</span></div>
-          ${proxyHedgeBadge}
-        </div>
-        <div class="system-console-action">
-          <span class="action-text">Action: ${escapeHtml(actionText)}</span>
-          <a href="#operator" data-open-operator-inline="1">View Operator</a>
-        </div>
-      </div>
-    `;
-  }).join("");
+    return {
+      label,
+      scoreChip: `${scoreText} • ${scoreLabel}`,
+      managedBadge: isNx8 ? `<span class="chip">Kamino (auto-rebalanced)</span>` : "",
+      netDelta: netDeltaText,
+      hedge: hedgeText,
+      liq: liqText,
+      range: rangeText,
+      basisRisk: reasons.includes("PROXY_HEDGE") ? `<span class="chip">PROXY_HEDGE</span>` : dash,
+      action: actionText
+    };
+  });
+  const sol = rendered[0];
+  const nx8 = rendered[1];
 
   systemConsolesWrap.innerHTML = `
     <div class="section-head">
       <h2>System Consoles</h2>
       <span class="section-subtle">SOL + NX8 parity</span>
     </div>
-    <div class="system-console-grid">${cardHtml}</div>
+    <table class="summary-table system-consoles-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>
+            <div class="system-col-head">
+              <span>SOL</span>
+              <span class="chip">${escapeHtml(sol.scoreChip)}</span>
+            </div>
+          </th>
+          <th>
+            <div class="system-col-head">
+              <span>NX8 ${nx8.managedBadge}</span>
+              <span class="chip">${escapeHtml(nx8.scoreChip)}</span>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Net Delta/Exposure</td><td>${escapeHtml(sol.netDelta)}</td><td>${escapeHtml(nx8.netDelta)}</td></tr>
+        <tr><td>Hedge %</td><td>${escapeHtml(sol.hedge)}</td><td>${escapeHtml(nx8.hedge)}</td></tr>
+        <tr><td>Liq Buffer</td><td>${escapeHtml(sol.liq)}</td><td>${escapeHtml(nx8.liq)}</td></tr>
+        <tr><td>Range</td><td>${escapeHtml(sol.range)}</td><td>${escapeHtml(nx8.range)}</td></tr>
+        <tr><td>Basis Risk</td><td>${sol.basisRisk}</td><td>${nx8.basisRisk}</td></tr>
+        <tr>
+          <td>Action</td>
+          <td><span class="action-text">${escapeHtml(sol.action)}</span> <a href="#operator" data-open-operator-inline="1">View Operator</a></td>
+          <td><span class="action-text">${escapeHtml(nx8.action)}</span> <a href="#operator" data-open-operator-inline="1">View Operator</a></td>
+        </tr>
+      </tbody>
+    </table>
   `;
   systemConsolesWrap.querySelectorAll("[data-open-operator-inline='1']").forEach((anchor) => {
     anchor.addEventListener("click", (event) => {
@@ -388,7 +500,7 @@ function renderSystemConsoles() {
     });
   });
 }
-// SYSTEM_CONSOLES_END
+// SYSTEM_CONSOLES_TABLE_END
 
 // OPERATOR_ACTION_PANEL_START
 // Ordering: engine-provided order (deterministic). UI must not sort.
@@ -728,7 +840,16 @@ function renderMetaStatus(summary) {
 function render(summary, fullPositions) {
   renderMetaStatus(summary);
   renderAttentionStrip();
+  renderWalletHeadlines(summary);
   renderSystemConsoles();
+  renderOperatorPanel(summary);
+  if (!(walletDataLoaded || currentMainTab === "wallet")) {
+    return;
+  }
+  renderWalletInventory(summary, fullPositions);
+}
+
+function renderWalletInventory(summary, fullPositions) {
   const perpsPnl = Number(summary?.jupiterPerps?.summary?.pnlUsd ?? 0);
   const liqPnl = Number(summary?.kaminoLiquidity?.pnlUsd ?? 0);
   const liqPnlFarms = Number(summary?.kaminoLiquidity?.pnlUsdFarmsStaked ?? 0);
@@ -1428,8 +1549,43 @@ function render(summary, fullPositions) {
       })()
     : `<div class="rewards-empty">No rewards found.</div>`;
 
-  rawJson.textContent = JSON.stringify(summary, null, 2);
-  renderOperatorPanel(summary);
+  if (walletSummaryStatus) walletSummaryStatus.textContent = `Wallet data updated ${new Date().toLocaleTimeString()}`;
+  if (walletTokensSummary) walletTokensSummary.textContent = `${pricedWalletRows.length + unpricedWalletRows.length} tokens`;
+  if (walletPositionsSummary) walletPositionsSummary.textContent = `${fmtUsd(positionsTotalUsd)} total`;
+  if (walletRewardsSummary) walletRewardsSummary.textContent = `${fmtUsd(Number(summary?.kaminoLiquidity?.rewards?.claimableValueUsd ?? 0))} claimable`;
+}
+
+async function ensureWalletDataLoaded() {
+  if (walletDataLoaded) return;
+  if (!latestSummary) {
+    await loadSummary();
+    return;
+  }
+  walletDataLoaded = true;
+  if (walletSummaryStatus) walletSummaryStatus.textContent = "Loading wallet inventory...";
+  render(latestSummary, null);
+}
+
+async function refreshWalletData() {
+  const wallet = walletInput.value.trim();
+  if (!wallet) {
+    if (walletSummaryStatus) walletSummaryStatus.textContent = "Wallet required";
+    return;
+  }
+  if (walletSummaryStatus) walletSummaryStatus.textContent = "Refreshing wallet data...";
+  try {
+    const summaryRes = await fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`);
+    if (!summaryRes.ok) {
+      const body = await summaryRes.json().catch(() => ({}));
+      throw new Error(body.error || `Request failed (${summaryRes.status})`);
+    }
+    latestSummary = await summaryRes.json();
+    walletDataLoaded = true;
+    render(latestSummary, null);
+    if (walletSummaryStatus) walletSummaryStatus.textContent = `Wallet refreshed ${new Date().toLocaleTimeString()}`;
+  } catch (err) {
+    if (walletSummaryStatus) walletSummaryStatus.textContent = err instanceof Error ? err.message : String(err);
+  }
 }
 
 async function loadSummary() {
@@ -1444,7 +1600,11 @@ async function loadSummary() {
   const walletChanged = latestWallet !== wallet;
   latestWallet = wallet;
   latestSummary = null;
-  if (walletChanged) latestAlertsPayload = null;
+  if (walletChanged) {
+    latestAlertsPayload = null;
+    walletDataLoaded = false;
+    if (walletSummaryStatus) walletSummaryStatus.textContent = "Idle";
+  }
 
   try {
     const [summaryRes, portfolioRes, alertsRes] = await Promise.all([
@@ -1484,8 +1644,12 @@ walletInput.addEventListener("keydown", (e) => {
 tabPortfolioMain?.addEventListener("click", () => setMainTab("portfolio"));
 tabOrcaMain?.addEventListener("click", () => setMainTab("orca"));
 tabOperatorMain?.addEventListener("click", () => setMainTab("operator"));
+tabWalletMain?.addEventListener("click", () => setMainTab("wallet"));
 refreshOrcaBtn?.addEventListener("click", () => {
   void ensureOrcaDataLoaded({ force: true, cacheBust: true });
+});
+refreshWalletBtn?.addEventListener("click", () => {
+  void refreshWalletData();
 });
 if (orcaFullTableDetails) {
   orcaFullTableDetails.open = loadOrcaFullTableState();
@@ -1493,6 +1657,9 @@ if (orcaFullTableDetails) {
     persistOrcaFullTableState(Boolean(orcaFullTableDetails.open));
   });
 }
+if (walletTokensDetails) walletTokensDetails.open = false;
+if (walletPositionsDetails) walletPositionsDetails.open = false;
+if (walletRewardsDetails) walletRewardsDetails.open = false;
 operatorModeToggle?.addEventListener("change", () => {
   operatorModeEnabled = Boolean(operatorModeToggle.checked);
   persistOperatorModeState(operatorModeEnabled);
@@ -1504,7 +1671,7 @@ if (operatorModeToggle) operatorModeToggle.checked = operatorModeEnabled;
 applyOperatorMode();
 window.addEventListener("hashchange", () => {
   const hashTab = String(window.location.hash || "").replace(/^#/, "").toLowerCase();
-  if (hashTab === "portfolio" || hashTab === "orca" || hashTab === "operator") {
+  if (hashTab === "portfolio" || hashTab === "orca" || hashTab === "operator" || hashTab === "wallet") {
     setMainTab(hashTab, { skipHash: true });
   }
 });

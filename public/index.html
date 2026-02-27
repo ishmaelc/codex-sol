@@ -55,31 +55,16 @@
         <button id="tabPortfolioMain" class="tab-btn is-active" type="button" data-main-tab="portfolio">Portfolio</button>
         <button id="tabOrcaMain" class="tab-btn" type="button" data-main-tab="orca">Orca</button>
         <button id="tabOperatorMain" class="tab-btn" type="button" data-main-tab="operator">Operator</button>
+        <button id="tabWalletMain" class="tab-btn" type="button" data-main-tab="wallet">Wallet</button>
       </section>
 
       <section id="tab-portfolio">
       <div id="overviewView">
         <section class="card" id="attentionStripWrap"></section>
+        <section class="card" id="walletHeadlinesWrap"></section>
         <section class="card" id="systemConsolesWrap"></section>
 
         <section class="card" id="orcaSnapshotWrap"></section>
-
-        <section class="grid-cards hidden" id="summaryCards"></section>
-
-        <section class="card hidden">
-          <h2>Rewards</h2>
-          <div id="rewardsTableWrap" class="rewards-wrap"></div>
-        </section>
-
-        <section class="card hidden">
-          <h2>Wallet Tokens</h2>
-          <div id="walletTokensWrap" class="rewards-wrap"></div>
-        </section>
-
-        <section class="card hidden">
-          <h2>Raw Summary</h2>
-          <pre id="rawJson" class="raw-json"></pre>
-        </section>
       </div>
 
       </section>
@@ -108,6 +93,37 @@
             <span class="section-subtle">Display-only canonical controls</span>
           </div>
           <div id="operatorPanelWrap"></div>
+        </section>
+      </section>
+
+      <section id="tab-wallet" class="hidden">
+        <section class="card">
+          <div class="section-head">
+            <h2>Wallet Inventory</h2>
+            <button id="refreshWalletBtn" type="button">Refresh Wallet</button>
+          </div>
+          <div id="walletSummaryStatus" class="table-note">Idle</div>
+        </section>
+
+        <section class="card">
+          <details id="walletTokensDetails">
+            <summary><strong>Wallet Tokens</strong> <span id="walletTokensSummary" class="table-note"></span></summary>
+            <div id="walletTokensWrap" class="rewards-wrap" style="margin-top:10px;"></div>
+          </details>
+        </section>
+
+        <section class="card">
+          <details id="walletPositionsDetails">
+            <summary><strong>Portfolio Positions</strong> <span id="walletPositionsSummary" class="table-note"></span></summary>
+            <div id="summaryCards" class="grid-cards" style="margin-top:10px;"></div>
+          </details>
+        </section>
+
+        <section class="card">
+          <details id="walletRewardsDetails">
+            <summary><strong>Rewards / Claimables</strong> <span id="walletRewardsSummary" class="table-note"></span></summary>
+            <div id="rewardsTableWrap" class="rewards-wrap" style="margin-top:10px;"></div>
+          </details>
         </section>
       </section>
 

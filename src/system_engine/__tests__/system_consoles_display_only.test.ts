@@ -7,11 +7,11 @@ test("system consoles block stays display-only (no math/sort recomputation)", ()
   const filePath = path.resolve(process.cwd(), "public/app.js");
   const src = fs.readFileSync(filePath, "utf8");
 
-  const start = src.indexOf("// SYSTEM_CONSOLES_START");
-  const end = src.indexOf("// SYSTEM_CONSOLES_END");
+  const start = src.indexOf("// SYSTEM_CONSOLES_TABLE_START");
+  const end = src.indexOf("// SYSTEM_CONSOLES_TABLE_END");
 
-  assert.notEqual(start, -1, "missing SYSTEM_CONSOLES_START marker");
-  assert.notEqual(end, -1, "missing SYSTEM_CONSOLES_END marker");
+  assert.notEqual(start, -1, "missing SYSTEM_CONSOLES_TABLE_START marker");
+  assert.notEqual(end, -1, "missing SYSTEM_CONSOLES_TABLE_END marker");
   assert.ok(end > start, "system consoles markers out of order");
 
   const block = src.slice(start, end);

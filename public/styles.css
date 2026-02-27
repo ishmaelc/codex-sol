@@ -286,6 +286,44 @@ button:hover {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
+.headlines-grid {
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.headline-stat .label {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.headline-stat .value {
+  margin-top: 4px;
+  font-size: 1.2rem;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.system-consoles-table td {
+  vertical-align: middle;
+}
+
+.system-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.action-text {
+  display: inline-block;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
 .system-console-card {
   display: flex;
   flex-direction: column;
