@@ -1,6 +1,6 @@
 # Vercel Scaffold (Separate from Express App)
 
-This folder contains a Vercel-friendly serverless scaffold that reuses the existing portfolio logic in `src/index.ts` without changing your current Express app in `src/server.ts`.
+This folder contains a Vercel-friendly serverless scaffold that reuses the existing portfolio logic in `src/index.ts` without changing your current Express app in `local-dev/server.ts`.
 
 ## What is included
 

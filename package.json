@@ -6,10 +6,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts",
-    "server": "tsx watch src/server.ts",
-    "server:once": "tsx src/server.ts",
-    "server:dev": "tsx watch src/server.ts",
+    "dev": "tsx local-dev/server.ts",
+    "server": "tsx watch local-dev/server.ts",
+    "server:once": "tsx local-dev/server.ts",
+    "server:dev": "tsx watch local-dev/server.ts",
     "orca:refresh": "tsx src/orca_scanner/main.ts",
     "orca:perf-snapshot": "tsx src/orca_scanner/performance_snapshot.ts",
     "test": "tsx --test src/system_engine/__tests__/*.test.ts"

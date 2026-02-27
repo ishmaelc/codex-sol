@@ -181,7 +181,7 @@ test("reversed bounds are normalized deterministically", () => {
 });
 
 test("server and vercel entrypoints both use shared summary builder", () => {
-  const serverSource = fs.readFileSync(path.resolve(process.cwd(), "src/server.ts"), "utf8");
+  const serverSource = fs.readFileSync(path.resolve(process.cwd(), "local-dev/server.ts"), "utf8");
   const vercelSource = fs.readFileSync(path.resolve(process.cwd(), "vercel/api/positions.ts"), "utf8");
 
   for (const source of [serverSource, vercelSource]) {

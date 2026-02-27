@@ -3,10 +3,10 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { PublicKey } from "@solana/web3.js";
-import { buildSummary, fetchWalletPositions } from "./index.js";
-import { computeSolSystem } from "./sol_system.js";
-import { buildPositionsSummaryInputs, buildSolSystemInputsFromSummary } from "./system_engine/positions/build_summary.js";
-import { createLocalAlertsHandler } from "./system_engine/alerts/local_alerts_handler.js";
+import { buildSummary, fetchWalletPositions } from "../src/index.js";
+import { computeSolSystem } from "../src/sol_system.js";
+import { buildPositionsSummaryInputs, buildSolSystemInputsFromSummary } from "../src/system_engine/positions/build_summary.js";
+import { createLocalAlertsHandler } from "../src/system_engine/alerts/local_alerts_handler.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
