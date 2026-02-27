@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "vercel/api/**/*.ts": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/vercel/api/$1.ts" }
+  ]
+}

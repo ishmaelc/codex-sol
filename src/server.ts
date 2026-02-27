@@ -6,7 +6,7 @@ import { PublicKey } from "@solana/web3.js";
 import { buildSummary, fetchWalletPositions } from "./index.js";
 import { computeSolSystem } from "./sol_system.js";
 import { buildPositionsSummaryInputs, buildSolSystemInputsFromSummary } from "./system_engine/positions/build_summary.js";
-import { getAlertsPayloadForRuntime } from "./system_engine/alerts/get_alerts_payload.js";
+import { createLocalAlertsHandler } from "./system_engine/alerts/local_alerts_handler.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
@@ -28,25 +28,6 @@ app.use(
     }
   })
 );
-
-export function createAlertsHandler(deps: {
-  getAlertsPayload: (args: { asOfTs: string; wallet?: string | null }) => Promise<unknown>;
-} = {
-  getAlertsPayload: getAlertsPayloadForRuntime
-}) {
-  return async (req: express.Request, res: express.Response) => {
-    try {
-      const wallet = String(req.query.wallet ?? "").trim() || null;
-      const payload = await deps.getAlertsPayload({
-        asOfTs: new Date().toISOString(),
-        wallet
-      });
-      res.json(payload);
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  };
-}
 
 app.get("/api/positions", async (req, res) => {
   const wallet = String(req.query.wallet ?? "").trim();
@@ -95,7 +76,7 @@ app.get("/api/positions", async (req, res) => {
   }
 });
 
-app.get("/api/alerts", createAlertsHandler());
+app.get("/api/alerts", createLocalAlertsHandler());
 
 app.get(/.*/, (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));

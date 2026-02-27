@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAlertsHandler } from "../../server.js";
+import { createLocalAlertsHandler } from "../alerts/local_alerts_handler.js";
 
 class MockResponse {
   statusCode = 200;
@@ -25,7 +25,7 @@ class MockResponse {
 }
 
 test("alerts endpoint handler returns JSON payload shape", async () => {
-  const handler = createAlertsHandler({
+  const handler = createLocalAlertsHandler({
     getAlertsPayload: async () => ({
       asOfTs: "2026-02-27T00:00:00.000Z",
       portfolio: { health: { overall: "strong" }, capitalGuard: { level: "none", triggers: [] } },
