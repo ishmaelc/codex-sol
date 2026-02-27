@@ -1701,7 +1701,8 @@ async function refreshWalletData() {
   setMainTab("operator");
 }
 
-async function loadPositionsSummaryOnDemand() {
+async function loadPositionsSummaryOnDemand(options = {}) {
+  const background = options.background === true;
   const wallet = walletInput.value.trim();
   if (!wallet) {
     state.positionsSummary.status = "error";
@@ -1724,11 +1725,12 @@ async function loadPositionsSummaryOnDemand() {
     state.positionsSummary.fetchedAt = Date.now();
     walletDataLoaded = true;
     render();
-    if (walletSummaryStatus) walletSummaryStatus.textContent = `Wallet refreshed ${new Date().toLocaleTimeString()}`;
+    if (walletSummaryStatus && !background) walletSummaryStatus.textContent = `Wallet refreshed ${new Date().toLocaleTimeString()}`;
   } catch (err) {
     state.positionsSummary.status = "error";
     state.positionsSummary.error = err instanceof Error ? err.message : String(err);
     render();
+    if (walletSummaryStatus && !background) walletSummaryStatus.textContent = state.positionsSummary.error;
   }
 }
 
@@ -1763,6 +1765,7 @@ async function loadAlerts() {
     state.alerts.fetchedAt = Date.now();
     selectedOperatorSystemId = chooseDefaultOperatorSystemId();
     render();
+    void loadPositionsSummaryOnDemand({ background: true });
   } catch (err) {
     state.alerts.status = "error";
     state.alerts.error = err instanceof Error ? err.message : String(err);
