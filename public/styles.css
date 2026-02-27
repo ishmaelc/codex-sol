@@ -286,6 +286,71 @@ button:hover {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
+.system-console-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+
+.system-console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.system-console-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.system-console-title h3 {
+  margin: 0;
+}
+
+.system-console-grid-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.system-console-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.system-console-row .label {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.system-console-row .value {
+  text-align: right;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.84rem;
+}
+
+.system-console-action {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.system-console-action .action-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.84rem;
+}
+
 .hidden {
   display: none;
 }

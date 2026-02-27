@@ -312,6 +312,7 @@ function findSystemForConsole(systemId) {
 function renderSystemConsoles() {
   if (!systemConsolesWrap) return;
   const systems = [findSystemForConsole("sol_hedged"), findSystemForConsole("nx8_hedged")];
+  const dash = "—";
   const cardHtml = systems.map((system, idx) => {
     const label = idx === 0 ? "SOL" : "NX8";
     if (!system) {
@@ -333,38 +334,42 @@ function renderSystemConsoles() {
     const hasLiq = freshness?.hasLiqPrice === true && liq?.liqBufferRatio != null;
     const hasRange = freshness?.hasRangeBuffer === true && range?.rangeBufferRatio != null;
     const netDeltaText = hasMark
-      ? (Number.isFinite(Number(exposures?.netDelta)) ? Number(exposures.netDelta).toFixed(4) : Number.isFinite(Number(exposures?.netSOLDelta)) ? Number(exposures.netSOLDelta).toFixed(4) : "N/A")
-      : "N/A";
-    const hedgeText = hasMark && Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(2)}%` : "N/A";
-    const liqText = hasLiq ? `${(Number(liq.liqBufferRatio) * 100).toFixed(2)}%` : "N/A";
-    const rangeText = isNx8 && !hasRange ? "Managed / N/A" : hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(2)}%` : "N/A";
-    const rangeLabel = isNx8 && !hasRange ? "Range" : "Range Buffer %";
+      ? (Number.isFinite(Number(exposures?.netDelta))
+          ? Number(exposures.netDelta).toFixed(4)
+          : Number.isFinite(Number(exposures?.netSOLDelta))
+            ? Number(exposures.netSOLDelta).toFixed(4)
+            : dash)
+      : dash;
+    const hedgeText = hasMark && Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(1)}%` : dash;
+    const liqText = hasLiq ? `${(Number(liq.liqBufferRatio) * 100).toFixed(1)}%` : dash;
+    const rangeText = isNx8 ? "Managed" : hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(1)}%` : dash;
     const hasMissingData = reasons.includes("MISSING_DATA");
     const actionText = hasMissingData ? "MISSING_DATA" : guardTriggers.length ? String(guardTriggers[0]) : "No action";
-    const showOperatorLink = hasMissingData || guardTriggers.length > 0;
+    const scoreText = Number.isFinite(Number(scoreObj?.score0to100)) ? Number(scoreObj.score0to100).toFixed(0) : dash;
+    const scoreLabel = String(scoreObj?.label ?? "N/A").toUpperCase();
+    const proxyHedgeBadge = reasons.includes("PROXY_HEDGE")
+      ? `<div class="system-console-row"><span class="label">Basis Risk</span><span class="value"><span class="chip">PROXY_HEDGE</span></span></div>`
+      : "";
     return `
-      <div class="stat">
-        <h3>${label} System Console ${isNx8 ? `<span class="chip">Kamino (auto-rebalanced)</span>` : ""}</h3>
-        <table class="summary-table" style="margin-top:8px;">
-          <tbody>
-            <tr>
-              <td>Health Score</td>
-              <td>${Number.isFinite(Number(scoreObj?.score0to100)) ? Number(scoreObj.score0to100).toFixed(0) : "N/A"}</td>
-              <td>Net Delta/Exposure</td>
-              <td>${netDeltaText}</td>
-              <td>Hedge %</td>
-              <td>${hedgeText}</td>
-            </tr>
-            <tr>
-              <td>Liq Buffer %</td>
-              <td>${liqText}</td>
-              <td>${rangeLabel}</td>
-              <td>${rangeText}</td>
-              <td>Recommended Action</td>
-              <td>${escapeHtml(actionText)} ${showOperatorLink ? `<a href="#operator" data-open-operator-inline="1">View Operator</a>` : ""}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="stat system-console-card">
+        <div class="system-console-head">
+          <div class="system-console-title">
+            <h3>${label}</h3>
+            ${isNx8 ? `<span class="chip">Kamino (auto-rebalanced)</span>` : ""}
+          </div>
+          <span class="chip">${escapeHtml(scoreText)} • ${escapeHtml(scoreLabel)}</span>
+        </div>
+        <div class="system-console-grid-rows">
+          <div class="system-console-row"><span class="label">Net Delta/Exposure</span><span class="value">${escapeHtml(netDeltaText)}</span></div>
+          <div class="system-console-row"><span class="label">Hedge %</span><span class="value">${escapeHtml(hedgeText)}</span></div>
+          <div class="system-console-row"><span class="label">Liq Buffer</span><span class="value">${escapeHtml(liqText)}</span></div>
+          <div class="system-console-row"><span class="label">Range</span><span class="value">${escapeHtml(rangeText)}</span></div>
+          ${proxyHedgeBadge}
+        </div>
+        <div class="system-console-action">
+          <span class="action-text">Action: ${escapeHtml(actionText)}</span>
+          <a href="#operator" data-open-operator-inline="1">View Operator</a>
+        </div>
       </div>
     `;
   }).join("");
