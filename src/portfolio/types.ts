@@ -1,3 +1,5 @@
+import type { SystemScore, SystemSnapshot } from "../lib/scoring/systemScore.js";
+
 export type ExposureLeg = {
   source: string;
   asset: string;
@@ -53,6 +55,11 @@ export type HedgedSystemSnapshot = {
   score: number;
   breakdown: SystemScoreBreakdown;
   riskFlags: RiskFlags;
+  scoringSnapshot: SystemSnapshot;
+  systemScore: SystemScore;
+  priceInputs?: Record<string, number>;
+  asOfMs: number;
+  nowMs: number;
   exposures?: ExposureLeg[];
   hedge?: HedgeLeg;
   updatedAt: string;

@@ -144,12 +144,23 @@ app.get("/api/positions", async (req, res) => {
       return min == null ? next : Math.min(min, next);
     }, null);
 
+    const nowMs = Date.now();
+    const asOfMs = nowMs;
+    const missingSources: string[] = [];
+    if (!solPerpPositions.length) missingSources.push("jupiter_perps");
+    if ((summary.orcaWhirlpools?.positions ?? []).length === 0) missingSources.push("orca_whirlpools");
+    if ((summary.kaminoLiquidity?.strategyValuations ?? []).length === 0) missingSources.push("kamino_liquidity");
+
     const solSystem = computeSolSystem({
       solLong: (orcaSolAmount ?? 0) + (kaminoSolAmount ?? 0),
       solShort: jupiterSolShortSize ?? 0,
       markPrice: solMarkPrice > 0 ? solMarkPrice : 1,
       liqPrice: solLiqPrice,
-      rangeBufferPct: closestRangeBuffer ?? 0
+      rangeBufferPct: closestRangeBuffer ?? 0,
+      asOfMs,
+      nowMs,
+      dataQuality0to1: Math.max(0, 1 - missingSources.length * 0.2),
+      missingSources
     });
 
     const payload = { ...summary, solSystem };

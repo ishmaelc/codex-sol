@@ -359,11 +359,17 @@ function renderSolSystemCard(system) {
     return `<section class="card"><h2>SOL System Console</h2><div class="rewards-empty">SOL system snapshot unavailable.</div></section>`;
   }
 
-  const health = Number(system.healthScore);
-  const scoreClass = Number.isFinite(health) ? (health >= 80 ? "pnl-pos" : health >= 60 ? "pnl-warn" : "pnl-neg") : "";
+  const systemScore = system?.systemScore ?? null;
+  const health = Number(systemScore?.score0to100);
+  const label = String(systemScore?.label ?? "");
+  const scoreClass = label === "GREEN" ? "pnl-pos" : label === "YELLOW" ? "pnl-warn" : "pnl-neg";
   const hedgePct = Number(system.hedgeCoveragePct);
   const liqPct = Number(system.liqBufferPct);
   const rangePct = Number(system.rangeBufferPct);
+  const reasons = Array.isArray(systemScore?.reasons) ? systemScore.reasons : [];
+  const components = systemScore?.components ?? {};
+  const asOfMs = Number(system?.asOfMs);
+  const ageMs = Number(system?.dataFreshness?.ageMs);
 
   return `
     <section class="card">
@@ -372,16 +378,20 @@ function renderSolSystemCard(system) {
         <span class="section-subtle">Aggregated hedge health</span>
       </div>
       <div class="stat">
-        <h3>Health Score</h3>
-        <p class="${scoreClass}" style="font-size:1.8rem;">${Number.isFinite(health) ? health.toFixed(0) : "n/a"}</p>
+        <h3>System Score</h3>
+        <p class="${scoreClass}" style="font-size:1.8rem;">${Number.isFinite(health) ? health.toFixed(0) : "n/a"} ${label ? `(${label})` : ""}</p>
       </div>
       <table class="summary-table" style="margin-top:12px;">
         <tbody>
+          <tr><td>As-of</td><td>${Number.isFinite(asOfMs) ? new Date(asOfMs).toLocaleString() : "n/a"}</td></tr>
+          <tr><td>Data age</td><td>${Number.isFinite(ageMs) ? `${Math.round(ageMs / 1000)}s` : "n/a"}</td></tr>
+          <tr><td>SOL price input</td><td>${fmtUsd(system?.priceInputs?.solPrice)}</td></tr>
           <tr><td>Net SOL</td><td>${fmtTokenAmount(system.netSol)}</td></tr>
           <tr><td>Hedge %</td><td>${Number.isFinite(hedgePct) ? `${(hedgePct * 100).toFixed(2)}%` : "n/a"}</td></tr>
           <tr><td>Liq buffer %</td><td>${Number.isFinite(liqPct) ? `${(liqPct * 100).toFixed(2)}%` : "n/a"}</td></tr>
           <tr><td>Range buffer %</td><td>${Number.isFinite(rangePct) ? `${(rangePct * 100).toFixed(2)}%` : "n/a"}</td></tr>
-          <tr><td>Recommended Action</td><td>${system.action ?? "No action"}</td></tr>
+          <tr><td>Reasons</td><td>${reasons.length ? reasons.join(", ") : "none"}</td></tr>
+          <tr><td>Components</td><td>hedge ${fmtNum((Number(components.hedge) || 0) * 100, 0)} · liq ${fmtNum((Number(components.liquidation) || 0) * 100, 0)} · range ${fmtNum((Number(components.range) || 0) * 100, 0)} · data ${fmtNum((Number(components.dataQuality) || 0) * 100, 0)} · basis ${fmtNum((Number(components.basisRisk) || 0) * 100, 0)}</td></tr>
         </tbody>
       </table>
     </section>
@@ -621,9 +631,13 @@ function renderPortfolioSystemsInline() {
   if (!systems.length) return `<div class="table-note">Portfolio systems: unavailable.</div>`;
   return `<div class="table-note">Portfolio systems: ${systems
     .map((s) => {
-      const score = Number(s?.score);
-      const status = String(s?.status ?? "red").toUpperCase();
-      return `${s?.label ?? s?.id}: ${Number.isFinite(score) ? (score * 100).toFixed(1) : "n/a"} (${status})`;
+      const systemScore = s?.systemScore ?? null;
+      const score = Number(systemScore?.score0to100);
+      const label = String(systemScore?.label ?? "n/a");
+      const reasons = Array.isArray(systemScore?.reasons) && systemScore.reasons.length ? ` [${systemScore.reasons.join(",")}]` : "";
+      const asOf = Number(s?.asOfMs);
+      const ageSec = Number(s?.nowMs) - asOf;
+      return `${s?.label ?? s?.id}: ${Number.isFinite(score) ? score.toFixed(0) : "n/a"} (${label})${reasons} asOf=${Number.isFinite(asOf) ? new Date(asOf).toLocaleTimeString() : "n/a"} age=${Number.isFinite(ageSec) ? Math.max(0, Math.round(ageSec / 1000)) : "n/a"}s`;
     })
     .join(" | ")}</div>`;
 }

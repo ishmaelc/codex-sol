@@ -1,16 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  computeDeltaScore,
-  computeHedgeSafetyScore,
-  computeRangeHealthScore,
-  computeStabilityScore,
-  computeSystemScore
-} from "../scoring.js";
+import { scoreSystem } from "../../lib/scoring/systemScore.js";
 import { getOperatorMode, normalizeCadenceHours } from "../operator_mode.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot, RiskFlags } from "../types.js";
 
 type JsonObj = Record<string, unknown>;
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
 
 async function readJson<T>(filePath: string): Promise<T | null> {
   try {
@@ -156,20 +155,34 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
   const feeApr = asNum(selectedSol?.feeAprPct) ?? asNum(firstRank?.feeAprPct) ?? 0;
   const regimeConfidence = asNum(regime?.confidence) ?? 0.4;
 
-  const deltaScore = computeDeltaScore(netSolDelta, Math.max(totalLongSol * operatorMode.deltaTolerance, 0.1));
-  const hedgeScore = computeHedgeSafetyScore({
-    leverage: perp?.leverage ?? 3,
-    liqBufferPct: liqBufferPct ?? 0,
-    fundingApr: asNum((plans?.regime as JsonObj | undefined)?.fundingAprPct) ?? 10
-  });
-  const rangeScore = computeRangeHealthScore({
-    inRange,
-    distanceToEdgePct: distPct ?? 0,
-    widthPct: widthPct ?? 0,
-    regime: String(regime?.regime ?? "MODERATE")
-  });
-  const stabilityScore = computeStabilityScore({ volumeTvl, depth1pctUsd, feeApr, regimeConfidence });
-  const breakdown = computeSystemScore({ deltaScore, hedgeScore, rangeScore, stabilityScore });
+  const qualityBase = clamp01(1 - (flags.includes("MISSING_DATA") ? 0.35 : 0));
+  const nowMs = Date.now();
+  const asOfMs = nowMs;
+  const scoringSnapshot = {
+    systemId: "sol_hedged",
+    asOfMs,
+    nowMs,
+    dataQuality: {
+      quality0to1: qualityBase,
+      missingSources: flags.includes("MISSING_DATA") ? ["api/positions"] : []
+    },
+    hedge: {
+      hedgePercent: totalLongSol > 0 ? (Math.abs(totalShortSol) / Math.abs(totalLongSol)) * 100 : 0,
+      driftFrac: totalLongSol > 0 ? Math.abs(netSolDelta) / Math.abs(totalLongSol) : 1,
+      isProxyHedge: false
+    },
+    liquidation: {
+      liqBufferPercent: liqBufferPct ?? 0
+    },
+    range: {
+      hasRangeRisk: true,
+      rangeBufferPercent: distPct ?? 0
+    },
+    basis: {
+      basisRiskEstimate0to1: 0.15
+    }
+  };
+  const systemScore = scoreSystem(scoringSnapshot);
 
   if (Math.abs(netSolDelta) > Math.max(totalLongSol * 0.25, 0.5)) flags.push("DELTA_DRIFT");
   if ((liqBufferPct ?? 0) < operatorMode.minLiqBufferPct * 100) flags.push("LOW_LIQ_BUFFER");
@@ -185,8 +198,20 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
     totalShort: totalShortSol,
     leverage: perp?.leverage ?? null,
     liqBufferPct,
-    score: breakdown.weighted,
-    breakdown,
+    score: systemScore.score0to1,
+    breakdown: {
+      delta: systemScore.components.hedge,
+      hedge: systemScore.components.hedge,
+      range: systemScore.components.range,
+      stability: systemScore.components.dataQuality,
+      weighted: systemScore.score0to1,
+      status: systemScore.label === "GREEN" ? "green" : systemScore.label === "YELLOW" ? "yellow" : "red"
+    },
+    scoringSnapshot,
+    systemScore,
+    priceInputs: { solPrice: spot },
+    asOfMs,
+    nowMs,
     riskFlags: Array.from(new Set(flags)),
     exposures: [
       {

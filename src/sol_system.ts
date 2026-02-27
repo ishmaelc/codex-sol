@@ -1,3 +1,5 @@
+import { scoreSystem, type SystemScore, type SystemSnapshot } from "./lib/scoring/systemScore.js";
+
 export type SolSystemSnapshot = {
   solLong: number;
   solShort: number;
@@ -5,9 +7,67 @@ export type SolSystemSnapshot = {
   hedgeCoveragePct: number;
   liqBufferPct: number;
   rangeBufferPct: number;
-  healthScore: number;
-  action: string;
+  asOfMs: number;
+  nowMs: number;
+  priceInputs: {
+    solPrice: number;
+  };
+  dataFreshness: {
+    ageMs: number;
+    missingSources: string[];
+  };
+  systemScore: SystemScore;
 };
+
+export function buildSolSystemScoreSnapshot(params: {
+  solLong: number;
+  solShort: number;
+  markPrice: number;
+  liqPrice?: number;
+  rangeBufferPct?: number;
+  asOfMs: number;
+  nowMs: number;
+  dataQuality0to1?: number;
+  missingSources?: string[];
+}): SystemSnapshot {
+  const solLong = Number(params.solLong) || 0;
+  const solShort = Number(params.solShort) || 0;
+  const absLong = Math.abs(solLong);
+  const absShort = Math.abs(solShort);
+  const totalExposureAbs = Math.max(absLong, 0.0001);
+  const netDelta = solLong - solShort;
+  const hedgePercent = (absShort / totalExposureAbs) * 100;
+  const driftFrac = Math.abs(netDelta) / totalExposureAbs;
+
+  const liqBufferPercent = Number.isFinite(Number(params.liqPrice)) && params.markPrice > 0
+    ? (((Number(params.liqPrice) - params.markPrice) / params.markPrice) * 100)
+    : 0;
+
+  return {
+    systemId: "sol_hedged",
+    asOfMs: params.asOfMs,
+    nowMs: params.nowMs,
+    dataQuality: {
+      quality0to1: Number.isFinite(params.dataQuality0to1) ? Number(params.dataQuality0to1) : 1,
+      missingSources: params.missingSources ?? []
+    },
+    hedge: {
+      hedgePercent,
+      driftFrac,
+      isProxyHedge: false
+    },
+    liquidation: {
+      liqBufferPercent
+    },
+    range: {
+      hasRangeRisk: true,
+      rangeBufferPercent: (params.rangeBufferPct ?? 0) * 100
+    },
+    basis: {
+      basisRiskEstimate0to1: 0.1
+    }
+  };
+}
 
 export function computeSolSystem(params: {
   solLong: number;
@@ -15,55 +75,41 @@ export function computeSolSystem(params: {
   markPrice: number;
   liqPrice?: number;
   rangeBufferPct?: number;
+  asOfMs?: number;
+  nowMs?: number;
+  dataQuality0to1?: number;
+  missingSources?: string[];
 }): SolSystemSnapshot {
+  const nowMs = Number.isFinite(params.nowMs) ? Number(params.nowMs) : Date.now();
+  const asOfMs = Number.isFinite(params.asOfMs) ? Number(params.asOfMs) : nowMs;
+
+  const scoringSnapshot = buildSolSystemScoreSnapshot({
+    ...params,
+    asOfMs,
+    nowMs,
+    missingSources: params.missingSources ?? []
+  });
+
+  const systemScore = scoreSystem(scoringSnapshot);
   const solLong = params.solLong;
   const solShort = params.solShort;
-  const netSol = solLong - solShort;
-
-  const hedgeCoveragePct = solLong > 0 ? Math.abs(solShort / solLong) : 0;
-
-  const liqBufferPct = params.liqPrice ? params.liqPrice / params.markPrice - 1 : 0;
-
-  const rangeBufferPct = params.rangeBufferPct ?? 0;
-
-  // Subscores
-  const hedgeScore =
-    hedgeCoveragePct >= 0.95 && hedgeCoveragePct <= 1.05
-      ? 25
-      : hedgeCoveragePct >= 0.85 && hedgeCoveragePct <= 1.2
-        ? 18
-        : hedgeCoveragePct >= 0.7 && hedgeCoveragePct <= 1.4
-          ? 10
-          : 0;
-
-  const liqScore = liqBufferPct > 0.3 ? 25 : liqBufferPct > 0.2 ? 18 : liqBufferPct > 0.1 ? 10 : 0;
-
-  const rangeScore = rangeBufferPct > 0.1 ? 25 : rangeBufferPct > 0.05 ? 18 : rangeBufferPct > 0.02 ? 10 : 0;
-
-  const liquidityScore = 20; // placeholder until we wire TVL scoring
-
-  const healthScore = hedgeScore + liqScore + rangeScore + liquidityScore;
-
-  let action = "No action";
-
-  if (liqBufferPct < 0.15) {
-    action = "Add collateral";
-  } else if (hedgeCoveragePct < 0.85) {
-    action = "Increase SOL short";
-  } else if (hedgeCoveragePct > 1.2) {
-    action = "Reduce SOL short";
-  } else if (rangeBufferPct < 0.03) {
-    action = "Prepare range rebalance";
-  }
 
   return {
     solLong,
     solShort,
-    netSol,
-    hedgeCoveragePct,
-    liqBufferPct,
-    rangeBufferPct,
-    healthScore,
-    action
+    netSol: solLong - solShort,
+    hedgeCoveragePct: scoringSnapshot.hedge.hedgePercent / 100,
+    liqBufferPct: scoringSnapshot.liquidation.liqBufferPercent / 100,
+    rangeBufferPct: (params.rangeBufferPct ?? 0),
+    asOfMs,
+    nowMs,
+    priceInputs: {
+      solPrice: params.markPrice
+    },
+    dataFreshness: {
+      ageMs: Math.max(0, nowMs - asOfMs),
+      missingSources: scoringSnapshot.dataQuality.missingSources ?? []
+    },
+    systemScore
   };
 }

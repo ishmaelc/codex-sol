@@ -1,12 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  computeDeltaScore,
-  computeHedgeSafetyScore,
-  computeRangeHealthScore,
-  computeStabilityScore,
-  computeSystemScore
-} from "../scoring.js";
+import { scoreSystem } from "../../lib/scoring/systemScore.js";
 import { getOperatorMode, normalizeCadenceHours } from "../operator_mode.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot, RiskFlags } from "../types.js";
 
@@ -181,16 +175,33 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
   const feeApr = asNum(firstRank.feeAprPct) ?? 6;
   const regimeConfidence = asNum(regime?.confidence) ?? 0.25;
 
-  const deltaScore = computeDeltaScore(netDelta, Math.max(Math.abs(nx8Notional ?? 1) * operatorMode.deltaTolerance, 1));
-  const hedgeScore = computeHedgeSafetyScore({ leverage, liqBufferPct, fundingApr: 8 });
-  const rangeScore = computeRangeHealthScore({
-    inRange: false,
-    distanceToEdgePct: 0,
-    widthPct: 0,
-    regime: String(regime?.regime ?? "MODERATE")
-  });
-  const stabilityScore = computeStabilityScore({ volumeTvl, depth1pctUsd, feeApr, regimeConfidence });
-  const breakdown = computeSystemScore({ deltaScore, hedgeScore, rangeScore, stabilityScore });
+  const nowMs = Date.now();
+  const asOfMs = nowMs;
+  const scoringSnapshot = {
+    systemId: "nx8_hedged",
+    asOfMs,
+    nowMs,
+    dataQuality: {
+      quality0to1: 0.65,
+      missingSources: ["orca/plans", "api/positions"]
+    },
+    hedge: {
+      hedgePercent: (nx8Notional ?? 0) > 0 && (btcNotional ?? 0) >= 0 ? (Math.abs(btcNotional ?? 0) / Math.max(Math.abs(nx8Notional ?? 0), 0.0001)) * 100 : 0,
+      driftFrac: Math.abs(netDelta) / Math.max(Math.abs(nx8Notional ?? 0), 1),
+      isProxyHedge: true
+    },
+    liquidation: {
+      liqBufferPercent: liqBufferPct
+    },
+    range: {
+      hasRangeRisk: false,
+      rangeBufferPercent: 100
+    },
+    basis: {
+      basisRiskEstimate0to1: 0.65
+    }
+  };
+  const systemScore = scoreSystem(scoringSnapshot);
 
   const riskFlags: RiskFlags = ["PROXY_HEDGE", "MISSING_DATA"];
   if (operatorMode.monitorCadenceHours === 48) riskFlags.push("LOW_MONITORING");
@@ -203,8 +214,20 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
     totalShort: totalShortBase,
     leverage,
     liqBufferPct,
-    score: breakdown.weighted,
-    breakdown,
+    score: systemScore.score0to1,
+    breakdown: {
+      delta: systemScore.components.hedge,
+      hedge: systemScore.components.hedge,
+      range: systemScore.components.range,
+      stability: systemScore.components.dataQuality,
+      weighted: systemScore.score0to1,
+      status: systemScore.label === "GREEN" ? "green" : systemScore.label === "YELLOW" ? "yellow" : "red"
+    },
+    scoringSnapshot,
+    systemScore,
+    priceInputs: { nx8PriceUsd: spotNx8, btcPriceUsd: btcPrice },
+    asOfMs,
+    nowMs,
     riskFlags,
     updatedAt: new Date().toISOString()
   };
