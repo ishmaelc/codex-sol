@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "assert:build-outputs": "node scripts/assert_build_outputs.js",
     "start": "tsx src/index.ts",
     "dev": "tsx local-dev/server.ts",
     "server": "tsx watch local-dev/server.ts",

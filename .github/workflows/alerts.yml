@@ -1,0 +1,56 @@
+name: Alerts Automation
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore alerts state cache
+        id: alerts-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .alerts_state.json
+          key: alerts-state-${{ github.repository }}-${{ github.run_id }}
+          restore-keys: |
+            alerts-state-${{ github.repository }}-
+
+      - name: Ensure state file exists
+        run: |
+          if [ ! -f .alerts_state.json ]; then
+            echo '{}' > .alerts_state.json
+          fi
+
+      - name: Run alerts runner
+        env:
+          ALERTS_URL: ${{ secrets.ALERTS_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CONSOLE_URL: ${{ secrets.CONSOLE_URL }}
+          ALERTS_STATE_FILE: .alerts_state.json
+        run: node scripts/alerts_runner.js
+
+      - name: Save alerts state cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .alerts_state.json
+          key: alerts-state-${{ github.repository }}-${{ github.run_id }}
