@@ -118,15 +118,19 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
   const spot = asNum(solPlan?.spotPrice) ?? 0;
 
   const approxDeltaFraction = asNum(hedge.approxDeltaFraction);
+  const deltaSolPer10k = asNum(hedge.deltaEstimateSolPer10kUsd);
   const solPer10k = asNum(hedge.recommendedShortSolPer10kUsd);
   const deployUsd = Number(process.env.PORTFOLIO_SOL_DEPLOY_USD ?? "10000");
   const deployUnits = Number.isFinite(deployUsd) && deployUsd > 0 ? deployUsd / 10_000 : 1;
 
   let totalLongSol = 0;
-  if (solPer10k != null && approxDeltaFraction != null && spot > 0) {
-    totalLongSol = (solPer10k / 0.95) * deployUnits;
+  if (deltaSolPer10k != null && spot > 0) {
+    totalLongSol = deltaSolPer10k * deployUnits;
   } else if (approxDeltaFraction != null && spot > 0) {
-    totalLongSol = ((deployUsd * approxDeltaFraction) / spot) * deployUnits;
+    totalLongSol = ((10_000 * approxDeltaFraction) / spot) * deployUnits;
+    flags.push("MISSING_DATA");
+  } else if (solPer10k != null) {
+    totalLongSol = solPer10k * deployUnits;
     flags.push("MISSING_DATA");
   } else {
     const kaminoPlaceholder = Number(process.env.PORTFOLIO_KAMINO_SOL_PLACEHOLDER ?? "0");
