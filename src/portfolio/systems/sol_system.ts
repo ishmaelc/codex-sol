@@ -42,6 +42,13 @@ function asNumLoose(v: unknown): number | null {
 const PERP_FETCH_TIMEOUT_MS = Number(process.env.PORTFOLIO_FETCH_TIMEOUT_MS ?? 8000);
 
 async function fetchPerpExposureFromApi(wallet: string | null, apiBaseUrl?: string): Promise<{
+  longSolQty: number | null;
+  longSolBreakdown: {
+    nativeSol: number;
+    spotWrappedSol: number;
+    kaminoSol: number;
+    orcaSol: number;
+  } | null;
   shortSolQty: number | null;
   shortSolNotionalUsd: number | null;
   leverage: number | null;
@@ -58,6 +65,48 @@ async function fetchPerpExposureFromApi(wallet: string | null, apiBaseUrl?: stri
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
     const json = (await res.json()) as Record<string, unknown>;
+    const spot = (json.spot as Record<string, unknown> | undefined) ?? {};
+    const nativeSol = asNumLoose(spot.nativeSol) ?? 0;
+    const splTokens = (spot.splTokens as Array<Record<string, unknown>> | undefined) ?? [];
+    const spotWrappedSol = splTokens
+      .filter((t) => String(t?.mint ?? "") === solMint || String(t?.symbol ?? "").toUpperCase() === "WSOL")
+      .reduce((acc, t) => acc + (asNumLoose(t?.amountUi) ?? 0), 0);
+
+    const kaminoLiquidity = (json.kaminoLiquidity as Record<string, unknown> | undefined) ?? {};
+    const kaminoData = (kaminoLiquidity.data as Record<string, unknown> | undefined) ?? {};
+    const strategyValuations = (kaminoData.strategyValuations as Array<Record<string, unknown>> | undefined) ?? [];
+    let kaminoSolQty = 0;
+    for (const s of strategyValuations) {
+      const tokenASymbol = String(s?.tokenASymbol ?? "").toUpperCase();
+      const tokenBSymbol = String(s?.tokenBSymbol ?? "").toUpperCase();
+      const tokenAMint = String(s?.tokenAMint ?? "");
+      const tokenBMint = String(s?.tokenBMint ?? "");
+      if (tokenASymbol === "SOL" || tokenAMint === solMint) {
+        kaminoSolQty += asNumLoose(s?.tokenAAmountUiFarmsStaked) ?? asNumLoose(s?.tokenAAmountUi) ?? 0;
+      }
+      if (tokenBSymbol === "SOL" || tokenBMint === solMint) {
+        kaminoSolQty += asNumLoose(s?.tokenBAmountUiFarmsStaked) ?? asNumLoose(s?.tokenBAmountUi) ?? 0;
+      }
+    }
+
+    const orcaWhirlpools = (json.orcaWhirlpools as Record<string, unknown> | undefined) ?? {};
+    const orcaData = (orcaWhirlpools.data as Record<string, unknown> | undefined) ?? {};
+    const whirlpoolPositions = (orcaData.positions as Array<Record<string, unknown>> | undefined) ?? [];
+    let orcaSolQty = 0;
+    for (const p of whirlpoolPositions) {
+      const tokenAMint = String(p?.tokenMintA ?? "");
+      const tokenBMint = String(p?.tokenMintB ?? "");
+      const tokenASymbol = String(p?.tokenSymbolA ?? "").toUpperCase();
+      const tokenBSymbol = String(p?.tokenSymbolB ?? "").toUpperCase();
+      if (tokenAMint === solMint || tokenASymbol === "SOL" || tokenASymbol === "WSOL") {
+        orcaSolQty += asNumLoose(p?.amountAEstUi) ?? 0;
+      }
+      if (tokenBMint === solMint || tokenBSymbol === "SOL" || tokenBSymbol === "WSOL") {
+        orcaSolQty += asNumLoose(p?.amountBEstUi) ?? 0;
+      }
+    }
+    const longSolQty = nativeSol + spotWrappedSol + kaminoSolQty + orcaSolQty;
+
     const jupiterPerps = (json.jupiterPerps as Record<string, unknown> | undefined) ?? {};
     const jupiterData = (jupiterPerps.data as Record<string, unknown> | undefined) ?? {};
     const raw = (jupiterData.raw as Record<string, unknown> | undefined) ?? {};
@@ -71,7 +120,17 @@ async function fetchPerpExposureFromApi(wallet: string | null, apiBaseUrl?: stri
       const address = String(p?.address ?? "");
       return symbol.includes("SOL") || address === solMint;
     });
-    if (!solPositions.length) return { shortSolQty: 0, shortSolNotionalUsd: 0, leverage: null, liqPrice: null, markPrice: null };
+    if (!solPositions.length) {
+      return {
+        longSolQty,
+        longSolBreakdown: { nativeSol, spotWrappedSol, kaminoSol: kaminoSolQty, orcaSol: orcaSolQty },
+        shortSolQty: 0,
+        shortSolNotionalUsd: 0,
+        leverage: null,
+        liqPrice: null,
+        markPrice: null
+      };
+    }
 
     let shortSolQty = 0;
     let shortSolNotionalUsd = 0;
@@ -92,7 +151,15 @@ async function fetchPerpExposureFromApi(wallet: string | null, apiBaseUrl?: stri
       markPrice = markPrice ?? asNumLoose(p?.markPrice) ?? asNumLoose(p?.entryPrice);
     }
 
-    return { shortSolQty, shortSolNotionalUsd, leverage, liqPrice, markPrice };
+    return {
+      longSolQty,
+      longSolBreakdown: { nativeSol, spotWrappedSol, kaminoSol: kaminoSolQty, orcaSol: orcaSolQty },
+      shortSolQty,
+      shortSolNotionalUsd,
+      leverage,
+      liqPrice,
+      markPrice
+    };
   } catch {
     return null;
   } finally {
@@ -122,9 +189,13 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
   const solPer10k = asNum(hedge.recommendedShortSolPer10kUsd);
   const deployUsd = Number(process.env.PORTFOLIO_SOL_DEPLOY_USD ?? "10000");
   const deployUnits = Number.isFinite(deployUsd) && deployUsd > 0 ? deployUsd / 10_000 : 1;
+  const wallet = context?.wallet ?? process.env.PORTFOLIO_WALLET ?? null;
+  const perp = await fetchPerpExposureFromApi(wallet, context?.apiBaseUrl);
 
   let totalLongSol = 0;
-  if (deltaSolPer10k != null && spot > 0) {
+  if ((perp?.longSolQty ?? 0) > 0) {
+    totalLongSol = perp?.longSolQty ?? 0;
+  } else if (deltaSolPer10k != null && spot > 0) {
     totalLongSol = deltaSolPer10k * deployUnits;
   } else if (approxDeltaFraction != null && spot > 0) {
     totalLongSol = ((10_000 * approxDeltaFraction) / spot) * deployUnits;
@@ -138,8 +209,6 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
     flags.push("MISSING_DATA");
   }
 
-  const wallet = context?.wallet ?? process.env.PORTFOLIO_WALLET ?? null;
-  const perp = await fetchPerpExposureFromApi(wallet, context?.apiBaseUrl);
   let totalShortSol = perp?.shortSolQty ?? 0;
   if (!perp) {
     totalShortSol = solPer10k != null ? solPer10k * deployUnits : 0;
@@ -242,6 +311,11 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
         ...canonicalSnapshot.debugMath,
         hedgeRatio: canonicalSnapshot.exposures.hedgeRatio,
         netDelta: canonicalSnapshot.exposures.netSOLDelta,
+        longSolFromWallet: totalLongSol,
+        longSolNative: perp?.longSolBreakdown?.nativeSol ?? null,
+        longSolSpotWrapped: perp?.longSolBreakdown?.spotWrappedSol ?? null,
+        longSolKamino: perp?.longSolBreakdown?.kaminoSol ?? null,
+        longSolOrca: perp?.longSolBreakdown?.orcaSol ?? null,
         hedgeScoreInputLeverage: perp?.leverage ?? 3,
         hedgeScoreInputLiqBufferPct: liqBufferPct ?? 0,
         hedgeScoreInputFundingApr: fundingApr,
