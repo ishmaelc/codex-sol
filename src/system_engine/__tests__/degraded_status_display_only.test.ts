@@ -39,7 +39,7 @@ test("main UI contains no Hedge Drift section text", () => {
   assert.equal(appSrc.includes("Wallet Snapshot"), true, "Wallet snapshot title should be present");
 });
 
-test("wallet snapshot headlines are alerts-driven (no positions summary dependency)", () => {
+test("wallet snapshot headlines are inventory-driven (positions summary), not alerts summary", () => {
   const appPath = path.resolve(process.cwd(), "public/app.js");
   const appSrc = fs.readFileSync(appPath, "utf8");
   const start = appSrc.indexOf("function renderWalletHeadlines()");
@@ -50,7 +50,7 @@ test("wallet snapshot headlines are alerts-driven (no positions summary dependen
   assert.ok(end > start, "wallet headlines function markers out of order");
 
   const block = appSrc.slice(start, end);
-  assert.equal(block.includes("state.positionsSummary"), false, "wallet headlines must not read positions summary");
-  assert.equal(block.includes("state.alerts.data"), true, "wallet headlines must be driven by alerts payload");
-  assert.equal(block.includes("Attention Level"), true, "wallet headlines should render alerts-driven labels");
+  assert.equal(block.includes("state.positionsSummary"), true, "wallet headlines must read positions summary inventory data");
+  assert.equal(block.includes("state.alerts.data"), false, "wallet headlines must not read alerts summary");
+  assert.equal(block.includes("Total Wallet Value"), true, "wallet headlines should render inventory totals");
 });

@@ -389,29 +389,74 @@ function chooseDefaultOperatorSystemId() {
   return String(systems[0]?.id ?? systems[0]?.systemId ?? "sol_hedged").toLowerCase();
 }
 
-function computeWalletHeadlineValues(alertsData) {
-  const attention = alertsData?.attention ?? {};
-  const systems = Array.isArray(attention?.systems) ? attention.systems : [];
-  const triggers = Array.isArray(attention?.triggers) ? attention.triggers : [];
-  const level = String(attention?.level ?? "none").toUpperCase();
+function computeWalletHeadlineValues(summary) {
+  const strategyValuations = summary?.kaminoLiquidity?.strategyValuations ?? [];
+  const solPriceFromStrategies = strategyValuations
+    .map((s) => {
+      if (s?.tokenASymbol === "SOL") return Number(s?.tokenAPriceUsd);
+      if (s?.tokenBSymbol === "SOL") return Number(s?.tokenBPriceUsd);
+      return NaN;
+    })
+    .find((v) => Number.isFinite(v));
+
+  const walletTokens = summary?.spot?.tokens ?? [];
+  const knownSolSpotUsd = Number.isFinite(solPriceFromStrategies) ? Number(summary?.spot?.nativeSol || 0) * solPriceFromStrategies : NaN;
+  const stableSymbols = new Set(["USDC", "USDG", "USDS"]);
+  const lendTokenPricesByMint = new Map((summary?.kaminoLend?.tokenPrices?.byMint ?? []).map((r) => [String(r.mint), Number(r.priceUsd)]));
+  const lendTokenPricesBySymbol = new Map(
+    (summary?.kaminoLend?.tokenPrices?.bySymbol ?? []).map((r) => [String(r.symbol ?? "").toUpperCase(), Number(r.priceUsd)])
+  );
+  const strategyTokenPrice = (symbol, mint) => {
+    for (const s of strategyValuations) {
+      if (symbol === s?.tokenASymbol || mint === s?.tokenAMint) return Number(s?.tokenAPriceUsd) || null;
+      if (symbol === s?.tokenBSymbol || mint === s?.tokenBMint) return Number(s?.tokenBPriceUsd) || null;
+    }
+    return null;
+  };
+  const tokenPriceUsd = (symbol, mint) => {
+    if (symbol === "SOL" || mint === "So11111111111111111111111111111111111111112") return Number.isFinite(solPriceFromStrategies) ? solPriceFromStrategies : null;
+    if (stableSymbols.has(symbol)) return 1;
+    const byMint = lendTokenPricesByMint.get(String(mint ?? ""));
+    if (Number.isFinite(byMint) && byMint > 0) return byMint;
+    const bySymbol = lendTokenPricesBySymbol.get(String(symbol ?? "").toUpperCase());
+    if (Number.isFinite(bySymbol) && bySymbol > 0) return bySymbol;
+    return strategyTokenPrice(symbol, mint);
+  };
+  const knownSplSpotUsd = walletTokens.reduce((acc, t) => {
+    const px = tokenPriceUsd(t.symbol, t.mint);
+    return acc + (px == null ? 0 : Number(t.amountUi || 0) * px);
+  }, 0);
+  const walletSpotKnownUsd = (Number.isFinite(knownSolSpotUsd) ? knownSolSpotUsd : 0) + knownSplSpotUsd;
+  const perpsValueUsd = Number(summary?.jupiterPerps?.summary?.valueUsd ?? NaN);
+  const lendValueUsd = Number(summary?.kaminoLend?.netValueUsd ?? NaN);
+  const liqFarmsValueUsd = Number(summary?.kaminoLiquidity?.valueUsdFarmsStaked ?? NaN);
+  const orcaWhirlpoolsValueUsd = Number(summary?.kaminoLiquidity?.orcaWhirlpoolsValueUsd ?? summary?.orcaWhirlpools?.valueUsd ?? NaN);
+  const liqPlusOrcaValueUsd = Number.isFinite(Number(summary?.kaminoLiquidity?.valueUsdFarmsStakedWithOrca))
+    ? Number(summary.kaminoLiquidity.valueUsdFarmsStakedWithOrca)
+    : liqFarmsValueUsd + orcaWhirlpoolsValueUsd;
+  const positionsTotalUsd = perpsValueUsd + lendValueUsd + liqPlusOrcaValueUsd;
+  const claimableValueUsd = Number(summary?.kaminoLiquidity?.rewards?.claimableValueUsd ?? NaN);
+
   return {
-    level,
-    systemCount: systems.length,
-    triggerCount: triggers.length
+    totalWalletValueUsd: Number.isFinite(walletSpotKnownUsd) && Number.isFinite(positionsTotalUsd) ? walletSpotKnownUsd + positionsTotalUsd : null,
+    totalClaimableRewardsUsd: Number.isFinite(claimableValueUsd) ? claimableValueUsd : null
   };
 }
 
 function renderWalletHeadlines() {
   if (!walletHeadlinesWrap) return;
-  const values = computeWalletHeadlineValues(state.alerts.data);
+  const summary = state.positionsSummary.data;
+  const values = summary ? computeWalletHeadlineValues(summary) : { totalWalletValueUsd: null, totalClaimableRewardsUsd: null };
+  const totalWallet = values.totalWalletValueUsd == null ? "—" : fmtUsd(values.totalWalletValueUsd);
+  const claimable = values.totalClaimableRewardsUsd == null ? "—" : fmtUsd(values.totalClaimableRewardsUsd);
   walletHeadlinesWrap.innerHTML = `
     <div class="section-head">
       <h2>Wallet Snapshot</h2>
-      <span class="section-subtle">Alerts summary</span>
+      <span class="section-subtle">Inventory snapshot</span>
     </div>
     <div class="headlines-grid">
-      <div class="headline-stat"><div class="label">Attention Level</div><div class="value">${escapeHtml(values.level)}</div></div>
-      <div class="headline-stat"><div class="label">Systems / Triggers</div><div class="value">${escapeHtml(`${values.systemCount} / ${values.triggerCount}`)}</div></div>
+      <div class="headline-stat"><div class="label">Total Wallet Value</div><div class="value">${escapeHtml(totalWallet)}</div></div>
+      <div class="headline-stat"><div class="label">Total Claimable Rewards</div><div class="value">${escapeHtml(claimable)}</div></div>
     </div>
   `;
 }
@@ -455,16 +500,17 @@ function renderSystemConsoles() {
     const hasMark = freshness?.hasMarkPrice === true;
     const hasLiq = freshness?.hasLiqPrice === true && liq?.liqBufferRatio != null;
     const hasRange = freshness?.hasRangeBuffer === true && range?.rangeBufferRatio != null;
+    const missingText = reasons.includes("MISSING_DATA") ? "MISSING" : "N/A";
     const netDeltaText = hasMark
       ? (Number.isFinite(Number(exposures?.netDelta))
           ? Number(exposures.netDelta).toFixed(4)
           : Number.isFinite(Number(exposures?.netSOLDelta))
             ? Number(exposures.netSOLDelta).toFixed(4)
-            : dash)
-      : dash;
-    const hedgeText = hasMark && Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(1)}%` : dash;
-    const liqText = hasLiq ? `${(Number(liq.liqBufferRatio) * 100).toFixed(1)}%` : dash;
-    const rangeText = isNx8 ? "Managed" : hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(1)}%` : dash;
+            : missingText)
+      : missingText;
+    const hedgeText = hasMark && Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(1)}%` : missingText;
+    const liqText = hasLiq ? `${(Number(liq.liqBufferRatio) * 100).toFixed(1)}%` : missingText;
+    const rangeText = isNx8 ? "Managed" : hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(1)}%` : missingText;
     const actionText = guardTriggers.length ? String(guardTriggers[0]) : "No action";
     const scoreText = Number.isFinite(Number(scoreObj?.score0to100)) ? Number(scoreObj.score0to100).toFixed(0) : dash;
     const scoreLabel = String(scoreObj?.label ?? "N/A").toUpperCase();
