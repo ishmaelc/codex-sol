@@ -1,0 +1,57 @@
+{
+  "jupiterPerps": {
+    "data": {
+      "raw": {
+        "elements": [
+          {
+            "type": "leverage",
+            "data": {
+              "isolated": {
+                "positions": [
+                  {
+                    "address": "So11111111111111111111111111111111111111112",
+                    "side": "short",
+                    "size": 2,
+                    "markPrice": 150,
+                    "liquidationPrice": 200
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "orcaWhirlpools": {
+    "positions": [
+      {
+        "tokenA": "SOL",
+        "amountAEstUi": 10,
+        "distanceToLowerPctFromCurrent": 5,
+        "distanceToUpperPctFromCurrent": 20,
+        "rangeLower": 120,
+        "rangeUpper": 170
+      },
+      {
+        "tokenB": "SOL",
+        "amountBEstUi": 1,
+        "distanceToLowerPctFromCurrent": 250,
+        "distanceToUpperPctFromCurrent": 300,
+        "rangeLower": 80,
+        "rangeUpper": 90
+      }
+    ]
+  },
+  "kaminoLiquidity": {
+    "strategyValuations": [
+      {
+        "tokenASymbol": "SOL",
+        "tokenAAmountUiFarmsStaked": 4
+      }
+    ]
+  },
+  "reasons": [
+    "MISSING_DATA"
+  ]
+}
