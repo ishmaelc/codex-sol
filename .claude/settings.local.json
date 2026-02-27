@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /Users/Chris/codex_sol/.claude/worktrees/competent-gould/src/**/*.ts)",
+      "Bash(git add CLAUDE.md .claude/)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
