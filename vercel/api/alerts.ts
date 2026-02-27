@@ -19,7 +19,8 @@ export default async function handler(req: any, res: any) {
         getAlertsPayloadForRuntime({
           ...args,
           apiBaseUrl
-        })
+        }),
+      timeoutMs: Number(process.env.ALERTS_TIMEOUT_MS ?? 15000)
     });
     if (result.status === 200) {
       res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");

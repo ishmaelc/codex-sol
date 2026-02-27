@@ -946,9 +946,11 @@ function renderPortfolioSystemsInline() {
 // DEGRADED_STATUS_START
 function renderHeaderStatus() {
   if (!dataStatusPill || !degradedBanner) return;
+  const alertsMeta = state.alerts.data?.meta ?? null;
+  const alertsDegraded = Boolean(alertsMeta?.degraded);
   if (state.alerts.status === "loading") statusEl.textContent = "ALERTS: LOADING";
   else if (state.alerts.status === "error") statusEl.textContent = "ALERTS: ERROR";
-  else if (state.alerts.status === "ok") statusEl.textContent = "ALERTS: LIVE";
+  else if (state.alerts.status === "ok") statusEl.textContent = alertsDegraded ? "ALERTS: DEGRADED" : "ALERTS: LIVE";
   else statusEl.textContent = "ALERTS: —";
 
   if (state.positionsSummary.status === "loading") {
