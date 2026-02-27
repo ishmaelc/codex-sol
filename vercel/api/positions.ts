@@ -1,22 +1,7 @@
 import { buildSummary, fetchWalletPositions } from "../../src/index.js";
 import { computeSolSystem } from "../../src/sol_system.js";
+import { buildPositionsSummaryInputs, buildSolSystemInputsFromSummary } from "../../src/system_engine/positions/build_summary.js";
 import { getQuery, json, requireWallet } from "./_utils.js";
-
-function toNumberOrZero(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function normalizePct(v: unknown): number {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return 0;
-  return Math.abs(n) > 1 ? n / 100 : n;
-}
-
-function toNullableNumber(v: unknown): number | null {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
 
 export default async function handler(req: any, res: any) {
   if (req.method && req.method !== "GET") {
@@ -34,110 +19,12 @@ export default async function handler(req: any, res: any) {
     const positions = await fetchWalletPositions(wallet);
     if (mode === "full") return json(res, 200, positions);
 
-    const summary = buildSummary(positions) as {
-      orcaWhirlpools?: {
-        positions?: Array<{
-          tokenA?: string | null;
-          tokenB?: string | null;
-          amountAEstUi?: number | null;
-          amountBEstUi?: number | null;
-          distanceToLowerPctFromCurrent?: number | null;
-          distanceToUpperPctFromCurrent?: number | null;
-          rangeLower?: number | null;
-          rangeUpper?: number | null;
-        }>;
-      };
-      kaminoLiquidity?: {
-        strategyValuations?: Array<{
-          tokenASymbol?: string | null;
-          tokenBSymbol?: string | null;
-          tokenAAmountUiFarmsStaked?: number | null;
-          tokenBAmountUiFarmsStaked?: number | null;
-          tokenAAmountUi?: number | null;
-          tokenBAmountUi?: number | null;
-        }>;
-      };
-    };
-
-    const orcaSolAmount = (summary.orcaWhirlpools?.positions ?? []).reduce((acc, p) => {
-      let next = acc;
-      if (String(p?.tokenA ?? "").toUpperCase() === "SOL") next += toNumberOrZero(p?.amountAEstUi);
-      if (String(p?.tokenB ?? "").toUpperCase() === "SOL") next += toNumberOrZero(p?.amountBEstUi);
-      return next;
-    }, 0);
-
-    const kaminoSolAmount = (summary.kaminoLiquidity?.strategyValuations ?? []).reduce((acc, s) => {
-      let next = acc;
-      if (String(s?.tokenASymbol ?? "").toUpperCase() === "SOL") {
-        next += toNumberOrZero(s?.tokenAAmountUiFarmsStaked ?? s?.tokenAAmountUi);
-      }
-      if (String(s?.tokenBSymbol ?? "").toUpperCase() === "SOL") {
-        next += toNumberOrZero(s?.tokenBAmountUiFarmsStaked ?? s?.tokenBAmountUi);
-      }
-      return next;
-    }, 0);
-
-    const leveragePositions =
-      (((positions.jupiterPerps.data as { raw?: { elements?: Array<{ type?: string; data?: { isolated?: { positions?: unknown[] } } }> } })
-        ?.raw?.elements ?? [])
-        .find((e) => e?.type === "leverage")
-        ?.data?.isolated?.positions ?? []) as Array<{
-        address?: string;
-        side?: string;
-        size?: number | string;
-        markPrice?: number | string;
-        liquidationPrice?: number | string;
-      }>;
-
-    const solPerpPositions = leveragePositions.filter(
-      (p) => String(p?.address ?? "") === "So11111111111111111111111111111111111111112"
-    );
-
-    const jupiterSolShortSize = solPerpPositions.reduce((acc, p) => {
-      const side = String(p?.side ?? "").toLowerCase();
-      if (side !== "short") return acc;
-      return acc + Math.abs(toNumberOrZero(p?.size));
-    }, 0);
-
-    const solMarkPrice = solPerpPositions.map((p) => Number(p?.markPrice)).find((v) => Number.isFinite(v)) ?? 0;
-    const solLiqPrice = solPerpPositions.map((p) => Number(p?.liquidationPrice)).find((v) => Number.isFinite(v));
-
-    const rangeState = (summary.orcaWhirlpools?.positions ?? []).reduce<{
-      rangeBufferRatio: number | null;
-      rangeLower: number | null;
-      rangeUpper: number | null;
-    }>(
-      (state, p) => {
-      const lower = normalizePct(p?.distanceToLowerPctFromCurrent);
-      const upper = normalizePct(p?.distanceToUpperPctFromCurrent);
-      const candidates = [lower, upper].filter((v) => Number.isFinite(v) && v >= 0);
-        if (!candidates.length) return state;
-      const next = Math.min(...candidates);
-        if (state.rangeBufferRatio == null || next < state.rangeBufferRatio) {
-          return {
-            rangeBufferRatio: next,
-            rangeLower: toNullableNumber(p?.rangeLower),
-            rangeUpper: toNullableNumber(p?.rangeUpper)
-          };
-        }
-        return state;
-      },
-      { rangeBufferRatio: null, rangeLower: null, rangeUpper: null }
-    );
-
-    const solLong = (orcaSolAmount ?? 0) + (kaminoSolAmount ?? 0);
-
-    const solShort = jupiterSolShortSize ?? 0;
-
-    const solSystem = computeSolSystem({
-      solLong,
-      solShort,
-      markPrice: solMarkPrice > 0 ? solMarkPrice : 1,
-      liqPrice: solLiqPrice ?? undefined,
-      rangeBufferPct: rangeState.rangeBufferRatio ?? 0,
-      rangeLower: rangeState.rangeLower ?? undefined,
-      rangeUpper: rangeState.rangeUpper ?? undefined
+    const summary = buildSummary(positions);
+    const summaryInputs = buildPositionsSummaryInputs({
+      ...summary,
+      jupiterPerps: positions.jupiterPerps
     });
+    const solSystem = computeSolSystem(buildSolSystemInputsFromSummary(summaryInputs));
 
     return json(res, 200, {
       ...summary,
