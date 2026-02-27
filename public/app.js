@@ -610,7 +610,7 @@ function renderOperatorPanel(summary) {
     <h4 class="table-subhead">Action Text</h4>
     <textarea id="operatorActionText" class="raw-json" readonly>${escapeHtml(actionText)}</textarea>
     <h4 class="table-subhead">Debug Math (raw)</h4>
-    <pre class="raw-json">${escapeHtml(JSON.stringify(solSystem?.snapshot?.debugMath ?? null, null, 2))}</pre>
+    <pre class="raw-json">${escapeHtml(JSON.stringify(selected?.snapshot?.debugMath ?? null, null, 2))}</pre>
     <details style="margin-top:10px;">
       <summary><strong>${escapeHtml(selectedLabel)} Deep Dive (canonical snapshot)</strong></summary>
       <pre class="raw-json" style="margin-top:8px;">${escapeHtml(deepDiveSnapshot)}</pre>
