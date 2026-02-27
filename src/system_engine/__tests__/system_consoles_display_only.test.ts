@@ -48,7 +48,8 @@ test("system consoles are sourced from alerts systems only", () => {
   const end = src.indexOf("// SYSTEM_CONSOLES_TABLE_END");
   const block = src.slice(start, end);
 
-  assert.equal(block.includes("findAlertSystem"), true, "systems overview should use alerts systems map");
+  assert.equal(block.includes("resolveSystemKinds"), true, "systems overview should resolve systems from alerts payload");
+  assert.equal(block.includes("findAlertSystem"), false, "systems overview should not rely on strict hardcoded id lookup");
   assert.equal(block.includes("latestPortfolioSystems"), false, "systems overview must not read systems_index in UI table");
   assert.equal(block.includes("positionsSummary"), false, "systems overview must not depend on positions summary");
 });

@@ -334,6 +334,22 @@ function findAlertSystem(systemId) {
   return systems.find((system) => String(system?.id ?? system?.systemId ?? "").toLowerCase() === systemId) ?? null;
 }
 
+function resolveSystemKinds() {
+  const systems = getAlertsSystems();
+  const withIds = systems.map((system) => ({
+    system,
+    id: String(system?.id ?? system?.systemId ?? "").toLowerCase()
+  }));
+  const sol = withIds.find((entry) => entry.id.includes("sol") && !entry.id.includes("nx8")) ?? null;
+  const nx8 = withIds.find((entry) => entry.id.includes("nx8")) ?? null;
+  return {
+    solId: sol?.id ?? "sol_hedged",
+    nx8Id: nx8?.id ?? "nx8_hedged",
+    solSystem: sol?.system ?? null,
+    nx8System: nx8?.system ?? null
+  };
+}
+
 function chooseDefaultOperatorSystemId() {
   const systems = getAlertsSystems();
   if (!systems.length) return "sol_hedged";
@@ -342,8 +358,8 @@ function chooseDefaultOperatorSystemId() {
     const attentionSystem = systems.find((system) => String(system?.capitalGuard?.level ?? "none").toLowerCase() !== "none");
     if (attentionSystem) return String(attentionSystem?.id ?? attentionSystem?.systemId ?? "sol_hedged").toLowerCase();
   }
-  const sol = systems.find((system) => String(system?.id ?? system?.systemId ?? "").toLowerCase() === "sol_hedged");
-  if (sol) return "sol_hedged";
+  const kinds = resolveSystemKinds();
+  if (kinds.solSystem) return kinds.solId;
   return String(systems[0]?.id ?? systems[0]?.systemId ?? "sol_hedged").toLowerCase();
 }
 
@@ -422,14 +438,14 @@ function renderWalletHeadlines() {
 // SYSTEM_CONSOLES_TABLE_START
 function renderSystemConsoles() {
   if (!systemConsolesWrap) return;
+  const kinds = resolveSystemKinds();
   const systems = [
-    { id: "sol_hedged", label: "SOL" },
-    { id: "nx8_hedged", label: "NX8" }
-  ].map((meta) => ({ meta, system: findAlertSystem(meta.id) }));
+    { id: kinds.solId, label: "SOL", system: kinds.solSystem },
+    { id: kinds.nx8Id, label: "NX8", system: kinds.nx8System }
+  ];
   const alertsUnavailable = getAlertsSystems().length === 0;
   const dash = "—";
-  const rendered = systems.map(({ system, meta }) => {
-    const label = meta.label;
+  const rendered = systems.map(({ system, label }) => {
     if (!system) {
       return {
         label,
@@ -508,7 +524,8 @@ function renderSystemConsoles() {
           </th>
           <th>
             <div class="system-col-head">
-              <span>NX8 ${nx8.managedBadge}</span>
+              <span>NX8</span>
+              ${nx8.managedBadge}
               <span class="chip">${escapeHtml(nx8.scoreChip)}</span>
             </div>
           </th>
@@ -593,6 +610,7 @@ function renderOperatorPanel() {
     operatorPanelWrap.innerHTML = `<div class="rewards-empty">Load wallet summary to view operator panel.</div><div class="table-note">Source: /api/alerts (system selector)</div>`;
     return;
   }
+  const kinds = resolveSystemKinds();
   const selected = systems.find((system) => String(system?.id ?? system?.systemId ?? "").toLowerCase() === selectedOperatorSystemId) ?? systems[0];
   const selectedId = String(selected?.id ?? selected?.systemId ?? "unknown").toLowerCase();
   selectedOperatorSystemId = selectedId;
@@ -670,11 +688,11 @@ function renderOperatorPanel() {
 
   const statusElLocal = document.getElementById("operatorCopyStatus");
   document.getElementById("operatorSelectSolBtn")?.addEventListener("click", () => {
-    selectedOperatorSystemId = "sol_hedged";
+    selectedOperatorSystemId = kinds.solId;
     renderOperatorPanel();
   });
   document.getElementById("operatorSelectNx8Btn")?.addEventListener("click", () => {
-    selectedOperatorSystemId = "nx8_hedged";
+    selectedOperatorSystemId = kinds.nx8Id;
     renderOperatorPanel();
   });
   document.getElementById("loadSolDeepDiveBtn")?.addEventListener("click", () => {
