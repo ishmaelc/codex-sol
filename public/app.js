@@ -479,11 +479,21 @@ function renderSystemConsoles() {
   const alertsDegraded = Boolean(alertsMeta?.degraded);
   const alertsErrorCode = String(alertsMeta?.errorCode ?? "ERROR");
   const dash = "—";
+  const scoreChipClass = (label) => {
+    const raw = String(label ?? "").toUpperCase();
+    if (raw.includes("GREEN")) return "score-green";
+    if (raw.includes("YELLOW")) return "score-yellow";
+    if (raw.includes("ORANGE")) return "score-orange";
+    if (raw.includes("RED")) return "score-red";
+    return "score-neutral";
+  };
   const rendered = systems.map(({ system, label }) => {
     if (!system) {
       return {
         label,
         scoreChip: dash,
+        scoreLabel: "N/A",
+        scoreClass: "score-neutral",
         managedBadge: "",
         netDelta: dash,
         hedge: dash,
@@ -537,7 +547,9 @@ function renderSystemConsoles() {
       : "";
     return {
       label,
-      scoreChip: `${scoreText} • ${scoreLabel}`,
+      scoreChip: scoreText,
+      scoreLabel,
+      scoreClass: scoreChipClass(scoreLabel),
       managedBadge: isNx8 ? `<span class="chip">Kamino (auto-rebalanced)</span>` : "",
       netDelta: netDeltaText,
       hedge: hedgeText,
@@ -562,15 +574,23 @@ function renderSystemConsoles() {
           <th>Metric</th>
           <th>
             <div class="system-col-head">
-              <span>SOL</span>
-              <span class="chip">${escapeHtml(sol.scoreChip)}</span>
+              <div class="system-col-title">
+                <span class="system-name">SOL</span>
+              </div>
+              <div class="system-col-score">
+                <span class="chip score-chip ${escapeHtml(sol.scoreClass)}">${escapeHtml(sol.scoreChip)} • ${escapeHtml(sol.scoreLabel)}</span>
+              </div>
             </div>
           </th>
           <th>
             <div class="system-col-head">
-              <span>NX8</span>
-              ${nx8.managedBadge}
-              <span class="chip">${escapeHtml(nx8.scoreChip)}</span>
+              <div class="system-col-title">
+                <span class="system-name">NX8</span>
+                ${nx8.managedBadge}
+              </div>
+              <div class="system-col-score">
+                <span class="chip score-chip ${escapeHtml(nx8.scoreClass)}">${escapeHtml(nx8.scoreChip)} • ${escapeHtml(nx8.scoreLabel)}</span>
+              </div>
             </div>
           </th>
         </tr>

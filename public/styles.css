@@ -309,10 +309,58 @@ button:hover {
 }
 
 .system-col-head {
+  display: grid;
+  gap: 6px;
+}
+
+.system-col-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.system-col-score {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.system-name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.score-chip {
+  font-weight: 700;
+}
+
+.score-neutral {
+  border-color: rgba(148, 160, 181, 0.35);
+  color: #d4dbe8;
+}
+
+.score-green {
+  border-color: rgba(102, 224, 208, 0.45);
+  color: #a9f5e6;
+  background: rgba(10, 49, 42, 0.55);
+}
+
+.score-yellow {
+  border-color: rgba(255, 205, 109, 0.45);
+  color: #ffe7bd;
+  background: rgba(60, 42, 12, 0.6);
+}
+
+.score-orange {
+  border-color: rgba(255, 166, 102, 0.45);
+  color: #ffd4b3;
+  background: rgba(61, 30, 10, 0.62);
+}
+
+.score-red {
+  border-color: rgba(255, 100, 100, 0.45);
+  color: #ffb3b3;
+  background: rgba(60, 10, 10, 0.6);
 }
 
 .action-text {
@@ -527,6 +575,15 @@ textarea.raw-json {
 
 .summary-table td:nth-child(2),
 .summary-table th:nth-child(2) {
+  text-align: right;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.system-consoles-table th:nth-child(2),
+.system-consoles-table td:nth-child(2),
+.system-consoles-table th:nth-child(3),
+.system-consoles-table td:nth-child(3) {
+  width: 33%;
   text-align: right;
   font-family: "IBM Plex Mono", monospace;
 }
