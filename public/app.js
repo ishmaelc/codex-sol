@@ -389,74 +389,29 @@ function chooseDefaultOperatorSystemId() {
   return String(systems[0]?.id ?? systems[0]?.systemId ?? "sol_hedged").toLowerCase();
 }
 
-function computeWalletHeadlineValues(summary) {
-  const strategyValuations = summary?.kaminoLiquidity?.strategyValuations ?? [];
-  const solPriceFromStrategies = strategyValuations
-    .map((s) => {
-      if (s?.tokenASymbol === "SOL") return Number(s?.tokenAPriceUsd);
-      if (s?.tokenBSymbol === "SOL") return Number(s?.tokenBPriceUsd);
-      return NaN;
-    })
-    .find((v) => Number.isFinite(v));
-
-  const walletTokens = summary?.spot?.tokens ?? [];
-  const knownSolSpotUsd = Number.isFinite(solPriceFromStrategies) ? Number(summary?.spot?.nativeSol || 0) * solPriceFromStrategies : NaN;
-  const stableSymbols = new Set(["USDC", "USDG", "USDS"]);
-  const lendTokenPricesByMint = new Map((summary?.kaminoLend?.tokenPrices?.byMint ?? []).map((r) => [String(r.mint), Number(r.priceUsd)]));
-  const lendTokenPricesBySymbol = new Map(
-    (summary?.kaminoLend?.tokenPrices?.bySymbol ?? []).map((r) => [String(r.symbol ?? "").toUpperCase(), Number(r.priceUsd)])
-  );
-  const strategyTokenPrice = (symbol, mint) => {
-    for (const s of strategyValuations) {
-      if (symbol === s?.tokenASymbol || mint === s?.tokenAMint) return Number(s?.tokenAPriceUsd) || null;
-      if (symbol === s?.tokenBSymbol || mint === s?.tokenBMint) return Number(s?.tokenBPriceUsd) || null;
-    }
-    return null;
-  };
-  const tokenPriceUsd = (symbol, mint) => {
-    if (symbol === "SOL" || mint === "So11111111111111111111111111111111111111112") return Number.isFinite(solPriceFromStrategies) ? solPriceFromStrategies : null;
-    if (stableSymbols.has(symbol)) return 1;
-    const byMint = lendTokenPricesByMint.get(String(mint ?? ""));
-    if (Number.isFinite(byMint) && byMint > 0) return byMint;
-    const bySymbol = lendTokenPricesBySymbol.get(String(symbol ?? "").toUpperCase());
-    if (Number.isFinite(bySymbol) && bySymbol > 0) return bySymbol;
-    return strategyTokenPrice(symbol, mint);
-  };
-  const knownSplSpotUsd = walletTokens.reduce((acc, t) => {
-    const px = tokenPriceUsd(t.symbol, t.mint);
-    return acc + (px == null ? 0 : Number(t.amountUi || 0) * px);
-  }, 0);
-  const walletSpotKnownUsd = (Number.isFinite(knownSolSpotUsd) ? knownSolSpotUsd : 0) + knownSplSpotUsd;
-  const perpsValueUsd = Number(summary?.jupiterPerps?.summary?.valueUsd ?? NaN);
-  const lendValueUsd = Number(summary?.kaminoLend?.netValueUsd ?? NaN);
-  const liqFarmsValueUsd = Number(summary?.kaminoLiquidity?.valueUsdFarmsStaked ?? NaN);
-  const orcaWhirlpoolsValueUsd = Number(summary?.kaminoLiquidity?.orcaWhirlpoolsValueUsd ?? summary?.orcaWhirlpools?.valueUsd ?? NaN);
-  const liqPlusOrcaValueUsd = Number.isFinite(Number(summary?.kaminoLiquidity?.valueUsdFarmsStakedWithOrca))
-    ? Number(summary.kaminoLiquidity.valueUsdFarmsStakedWithOrca)
-    : liqFarmsValueUsd + orcaWhirlpoolsValueUsd;
-  const positionsTotalUsd = perpsValueUsd + lendValueUsd + liqPlusOrcaValueUsd;
-  const claimableValueUsd = Number(summary?.kaminoLiquidity?.rewards?.claimableValueUsd ?? NaN);
-
+function computeWalletHeadlineValues(alertsData) {
+  const attention = alertsData?.attention ?? {};
+  const systems = Array.isArray(attention?.systems) ? attention.systems : [];
+  const triggers = Array.isArray(attention?.triggers) ? attention.triggers : [];
+  const level = String(attention?.level ?? "none").toUpperCase();
   return {
-    totalWalletValueUsd: Number.isFinite(walletSpotKnownUsd) && Number.isFinite(positionsTotalUsd) ? walletSpotKnownUsd + positionsTotalUsd : null,
-    totalClaimableRewardsUsd: Number.isFinite(claimableValueUsd) ? claimableValueUsd : null
+    level,
+    systemCount: systems.length,
+    triggerCount: triggers.length
   };
 }
 
 function renderWalletHeadlines() {
   if (!walletHeadlinesWrap) return;
-  const summary = state.positionsSummary.data;
-  const values = summary ? computeWalletHeadlineValues(summary) : { totalWalletValueUsd: null, totalClaimableRewardsUsd: null };
-  const totalWallet = values.totalWalletValueUsd == null ? "—" : fmtUsd(values.totalWalletValueUsd);
-  const claimable = values.totalClaimableRewardsUsd == null ? "—" : fmtUsd(values.totalClaimableRewardsUsd);
+  const values = computeWalletHeadlineValues(state.alerts.data);
   walletHeadlinesWrap.innerHTML = `
     <div class="section-head">
       <h2>Wallet Snapshot</h2>
-      <span class="section-subtle">Inventory snapshot</span>
+      <span class="section-subtle">Alerts summary</span>
     </div>
     <div class="headlines-grid">
-      <div class="headline-stat"><div class="label">Total Wallet Value</div><div class="value">${escapeHtml(totalWallet)}</div></div>
-      <div class="headline-stat"><div class="label">Total Claimable Rewards</div><div class="value">${escapeHtml(claimable)}</div></div>
+      <div class="headline-stat"><div class="label">Attention Level</div><div class="value">${escapeHtml(values.level)}</div></div>
+      <div class="headline-stat"><div class="label">Systems / Triggers</div><div class="value">${escapeHtml(`${values.systemCount} / ${values.triggerCount}`)}</div></div>
     </div>
   `;
 }
@@ -1724,7 +1679,8 @@ async function ensureWalletDataLoaded() {
 }
 
 async function refreshWalletData() {
-  setMainTab("operator");
+  setMainTab("wallet");
+  await loadPositionsSummaryOnDemand();
 }
 
 async function loadPositionsSummaryOnDemand(options = {}) {
@@ -1791,7 +1747,6 @@ async function loadAlerts() {
     state.alerts.fetchedAt = Date.now();
     selectedOperatorSystemId = chooseDefaultOperatorSystemId();
     render();
-    void loadPositionsSummaryOnDemand({ background: true });
   } catch (err) {
     state.alerts.status = "error";
     state.alerts.error = err instanceof Error ? err.message : String(err);
