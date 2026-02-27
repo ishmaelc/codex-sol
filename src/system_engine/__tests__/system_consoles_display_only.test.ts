@@ -40,3 +40,15 @@ test("system consoles action row is trigger-driven, not forced by MISSING_DATA r
     "MISSING_DATA reason must not override action row"
   );
 });
+
+test("system consoles are sourced from alerts systems only", () => {
+  const filePath = path.resolve(process.cwd(), "public/app.js");
+  const src = fs.readFileSync(filePath, "utf8");
+  const start = src.indexOf("// SYSTEM_CONSOLES_TABLE_START");
+  const end = src.indexOf("// SYSTEM_CONSOLES_TABLE_END");
+  const block = src.slice(start, end);
+
+  assert.equal(block.includes("findAlertSystem"), true, "systems overview should use alerts systems map");
+  assert.equal(block.includes("latestPortfolioSystems"), false, "systems overview must not read systems_index in UI table");
+  assert.equal(block.includes("positionsSummary"), false, "systems overview must not depend on positions summary");
+});

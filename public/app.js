@@ -43,14 +43,16 @@ const DEFAULT_WALLET = "4ogWhtiSEAaXZCDD9BPAnRa2DY18pxvF9RbiUUdRJSvr";
 walletInput.value = DEFAULT_WALLET;
 
 let latestWallet = "";
-let latestSummary = null;
 let latestPortfolioSystems = null;
 let operatorModeEnabled = false;
 let currentMainTab = "portfolio";
 let latestOrcaData = null;
-let latestAlertsPayload = null;
 let walletDataLoaded = false;
 let selectedOperatorSystemId = "sol_hedged";
+const state = {
+  alerts: { data: null, fetchedAt: null, status: "idle", error: null },
+  positionsSummary: { data: null, fetchedAt: null, status: "idle", error: null }
+};
 
 function loadOperatorModeState() {
   try {
@@ -165,7 +167,7 @@ function setMainTab(tab, options = {}) {
   if (!options.skipHash) window.location.hash = `#${next}`;
   persistMainTabState(next);
   if ((next === "portfolio" || next === "orca") && !latestOrcaData) void ensureOrcaDataLoaded();
-  if (next === "operator") renderOperatorPanel(latestSummary);
+  if (next === "operator") renderOperatorPanel();
   if (next === "wallet") void ensureWalletDataLoaded();
 }
 
@@ -292,12 +294,22 @@ function renderOrcaSurfaces() {
 
 function renderAttentionStrip() {
   if (!attentionStripWrap) return;
-  const attention = latestAlertsPayload?.attention ?? null;
+  const attention = state.alerts.data?.attention ?? null;
   const level = String(attention?.level ?? "none").toUpperCase();
   const triggers = Array.isArray(attention?.triggers) ? attention.triggers.slice(0, 3) : [];
+  const systems = getAlertsSystems();
+  const driverSystems = systems
+    .filter((system) => String(system?.capitalGuard?.level ?? "none").toLowerCase() !== "none")
+    .map((system) => String(system?.id ?? system?.systemId ?? ""))
+    .filter(Boolean);
+  const fallbackDrivers = systems
+    .filter((system) => String(system?.health?.overall ?? "").toLowerCase() === "critical")
+    .map((system) => String(system?.id ?? system?.systemId ?? ""))
+    .filter(Boolean);
+  const drivers = (driverSystems.length ? driverSystems : fallbackDrivers).slice(0, 2);
   const body = triggers.length
     ? triggers.map((trigger) => `<span class="chip">${escapeHtml(String(trigger))}</span>`).join("")
-    : `<span class="table-note">No active attention</span>`;
+    : `<span class="table-note">No active alerts</span>`;
 
   attentionStripWrap.innerHTML = `
     <div class="section-head">
@@ -305,6 +317,7 @@ function renderAttentionStrip() {
       <button type="button" id="attentionOpenOperatorBtn">Open Operator</button>
     </div>
     <div class="table-note">Level: ${escapeHtml(level)}</div>
+    <div class="table-note">Driver: ${escapeHtml(drivers.length ? drivers.join(", ") : "—")}</div>
     <div class="toggle-row" style="margin-top:8px;">${body}</div>
   `;
   document.getElementById("attentionOpenOperatorBtn")?.addEventListener("click", () => {
@@ -313,7 +326,7 @@ function renderAttentionStrip() {
 }
 
 function getAlertsSystems() {
-  return Array.isArray(latestAlertsPayload?.systems) ? latestAlertsPayload.systems : [];
+  return Array.isArray(state.alerts.data?.systems) ? state.alerts.data.systems : [];
 }
 
 function findAlertSystem(systemId) {
@@ -324,7 +337,7 @@ function findAlertSystem(systemId) {
 function chooseDefaultOperatorSystemId() {
   const systems = getAlertsSystems();
   if (!systems.length) return "sol_hedged";
-  const attentionLevel = String(latestAlertsPayload?.attention?.level ?? "none").toLowerCase();
+  const attentionLevel = String(state.alerts.data?.attention?.level ?? "none").toLowerCase();
   if (attentionLevel !== "none") {
     const attentionSystem = systems.find((system) => String(system?.capitalGuard?.level ?? "none").toLowerCase() !== "none");
     if (attentionSystem) return String(attentionSystem?.id ?? attentionSystem?.systemId ?? "sol_hedged").toLowerCase();
@@ -388,9 +401,10 @@ function computeWalletHeadlineValues(summary) {
   };
 }
 
-function renderWalletHeadlines(summary) {
+function renderWalletHeadlines() {
   if (!walletHeadlinesWrap) return;
-  const values = computeWalletHeadlineValues(summary);
+  const summary = state.positionsSummary.data;
+  const values = summary ? computeWalletHeadlineValues(summary) : { totalWalletValueUsd: null, totalClaimableRewardsUsd: null };
   const totalWallet = values.totalWalletValueUsd == null ? "—" : fmtUsd(values.totalWalletValueUsd);
   const claimable = values.totalClaimableRewardsUsd == null ? "—" : fmtUsd(values.totalClaimableRewardsUsd);
   walletHeadlinesWrap.innerHTML = `
@@ -547,7 +561,7 @@ async function copyTextValue(text) {
   ta.remove();
 }
 
-function operatorCopyPayload(kind, summary, selectedSystem) {
+function operatorCopyPayload(kind, selectedSystem) {
   const reasons = getOperatorReasons(selectedSystem);
   const triggers = Array.isArray(selectedSystem?.capitalGuard?.triggers) ? selectedSystem.capitalGuard.triggers : [];
   const level = String(selectedSystem?.capitalGuard?.level ?? "none");
@@ -569,10 +583,10 @@ function operatorCopyPayload(kind, summary, selectedSystem) {
   if (kind === "reasons") return reasons.length ? reasons.join("\n") : "No reasons";
   if (kind === "actionText") return actionLines.join("\n");
   if (kind === "debug") return JSON.stringify(selectedSystem?.snapshot?.debugMath ?? null, null, 2);
-  return JSON.stringify(summary ?? null, null, 2);
+  return JSON.stringify(state.alerts.data ?? null, null, 2);
 }
 
-function renderOperatorPanel(summary) {
+function renderOperatorPanel() {
   if (!operatorPanelWrap) return;
   const systems = getAlertsSystems();
   if (!systems.length) {
@@ -585,7 +599,7 @@ function renderOperatorPanel(summary) {
   const score = selected?.scoreObj ?? selected?.score ?? null;
   const reasons = getOperatorReasons(selected);
   const triggers = Array.isArray(selected?.capitalGuard?.triggers) ? selected.capitalGuard.triggers : [];
-  const actionText = operatorCopyPayload("actionText", summary, selected);
+  const actionText = operatorCopyPayload("actionText", selected);
   const deepDiveSnapshot = JSON.stringify(selected?.snapshot ?? null, null, 2);
   const selectedLabel = selectedId.includes("nx8") ? "NX8" : "SOL";
 
@@ -615,6 +629,35 @@ function renderOperatorPanel(summary) {
       <summary><strong>${escapeHtml(selectedLabel)} Deep Dive (canonical snapshot)</strong></summary>
       <pre class="raw-json" style="margin-top:8px;">${escapeHtml(deepDiveSnapshot)}</pre>
     </details>
+    <details style="margin-top:10px;">
+      <summary><strong>SOL Deep Dive (positions summary)</strong></summary>
+      <div class="toggle-row" style="margin-top:8px;">
+        <button type="button" id="loadSolDeepDiveBtn">Load SOL Deep Dive</button>
+        <span class="table-note">${
+          state.positionsSummary.status === "loading"
+            ? "POSITIONS: LOADING"
+            : state.positionsSummary.status === "error"
+              ? "POSITIONS: ERROR"
+              : state.positionsSummary.data?.meta?.degraded === true
+                ? "POSITIONS: DEGRADED (cached)"
+                : state.positionsSummary.status === "ok"
+                  ? "POSITIONS: LIVE"
+                  : "POSITIONS: —"
+        }</span>
+      </div>
+      ${
+        state.positionsSummary.data?.meta?.degraded === true
+          ? `<div class="table-note">Positions summary is cached (${escapeHtml(String(state.positionsSummary.data?.meta?.errorCode ?? "TIMEOUT"))}).</div>`
+          : ""
+      }
+      <pre class="raw-json" style="margin-top:8px;">${escapeHtml(
+        JSON.stringify(
+          state.positionsSummary.data?.solSystem?.snapshot?.debugMath ?? state.positionsSummary.data?.solSystem?.snapshot ?? null,
+          null,
+          2
+        )
+      )}</pre>
+    </details>
     <div class="toggle-row" style="margin-top:10px;">
       <button type="button" id="copyOperatorTriggersBtn">Copy Triggers</button>
       <button type="button" id="copyOperatorReasonsBtn">Copy Reasons</button>
@@ -628,16 +671,19 @@ function renderOperatorPanel(summary) {
   const statusElLocal = document.getElementById("operatorCopyStatus");
   document.getElementById("operatorSelectSolBtn")?.addEventListener("click", () => {
     selectedOperatorSystemId = "sol_hedged";
-    renderOperatorPanel(summary);
+    renderOperatorPanel();
   });
   document.getElementById("operatorSelectNx8Btn")?.addEventListener("click", () => {
     selectedOperatorSystemId = "nx8_hedged";
-    renderOperatorPanel(summary);
+    renderOperatorPanel();
+  });
+  document.getElementById("loadSolDeepDiveBtn")?.addEventListener("click", () => {
+    void loadPositionsSummaryOnDemand();
   });
   const bindCopy = (id, kind) => {
     document.getElementById(id)?.addEventListener("click", async () => {
       try {
-        await copyTextValue(operatorCopyPayload(kind, summary, selected));
+        await copyTextValue(operatorCopyPayload(kind, selected));
         if (statusElLocal) statusElLocal.textContent = `Copied ${kind}`;
       } catch (err) {
         if (statusElLocal) statusElLocal.textContent = err instanceof Error ? err.message : String(err);
@@ -844,12 +890,38 @@ function renderPortfolioSystemsInline() {
 }
 
 // DEGRADED_STATUS_START
-function renderMetaStatus(summary) {
+function renderHeaderStatus() {
   if (!dataStatusPill || !degradedBanner) return;
-  const meta = summary?.meta ?? null;
+  if (state.alerts.status === "loading") statusEl.textContent = "ALERTS: LOADING";
+  else if (state.alerts.status === "error") statusEl.textContent = "ALERTS: ERROR";
+  else if (state.alerts.status === "ok") statusEl.textContent = "ALERTS: LIVE";
+  else statusEl.textContent = "ALERTS: —";
+
+  if (state.positionsSummary.status === "loading") {
+    dataStatusPill.textContent = "POSITIONS: LOADING";
+    dataStatusPill.classList.remove("status-pill-warning");
+    degradedBanner.classList.add("hidden");
+    degradedBanner.innerHTML = "";
+    return;
+  }
+  if (state.positionsSummary.status === "error") {
+    dataStatusPill.textContent = "POSITIONS: ERROR";
+    dataStatusPill.classList.add("status-pill-warning");
+    degradedBanner.classList.add("hidden");
+    degradedBanner.innerHTML = "";
+    return;
+  }
+  if (state.positionsSummary.status !== "ok" || !state.positionsSummary.data) {
+    dataStatusPill.textContent = "POSITIONS: —";
+    dataStatusPill.classList.remove("status-pill-warning");
+    degradedBanner.classList.add("hidden");
+    degradedBanner.innerHTML = "";
+    return;
+  }
+  const meta = state.positionsSummary.data?.meta ?? null;
   const degraded = Boolean(meta?.degraded);
   if (!degraded) {
-    dataStatusPill.textContent = "LIVE";
+    dataStatusPill.textContent = "POSITIONS: LIVE";
     dataStatusPill.classList.remove("status-pill-warning");
     degradedBanner.classList.add("hidden");
     degradedBanner.innerHTML = "";
@@ -859,7 +931,7 @@ function renderMetaStatus(summary) {
   const fallbackSource = String(meta?.fallbackSource ?? "unknown");
   const errorCode = String(meta?.errorCode ?? "ERROR");
   const reasons = Array.isArray(meta?.reasons) ? meta.reasons : [];
-  dataStatusPill.textContent = "DEGRADED (cached)";
+  dataStatusPill.textContent = "POSITIONS: DEGRADED (cached)";
   dataStatusPill.classList.add("status-pill-warning");
   degradedBanner.classList.remove("hidden");
   degradedBanner.innerHTML = `
@@ -875,16 +947,16 @@ function renderMetaStatus(summary) {
 }
 // DEGRADED_STATUS_END
 
-function render(summary, fullPositions) {
-  renderMetaStatus(summary);
+function render() {
+  renderHeaderStatus();
   renderAttentionStrip();
-  renderWalletHeadlines(summary);
+  renderWalletHeadlines();
   renderSystemConsoles();
-  renderOperatorPanel(summary);
-  if (!(walletDataLoaded || currentMainTab === "wallet")) {
+  renderOperatorPanel();
+  if (!(walletDataLoaded || currentMainTab === "wallet") || !state.positionsSummary.data) {
     return;
   }
-  renderWalletInventory(summary, fullPositions);
+  renderWalletInventory(state.positionsSummary.data, null);
 }
 
 function renderWalletInventory(summary, fullPositions) {
@@ -1594,92 +1666,98 @@ function renderWalletInventory(summary, fullPositions) {
 }
 
 async function ensureWalletDataLoaded() {
-  if (walletDataLoaded) return;
-  if (!latestSummary) {
-    await loadSummary();
+  if (walletDataLoaded && state.positionsSummary.data) return;
+  walletDataLoaded = true;
+  if (!state.positionsSummary.data) {
+    if (walletSummaryStatus) walletSummaryStatus.textContent = "Load SOL Deep Dive in Operator to populate wallet inventory.";
+    walletTokensWrap.innerHTML = `<div class="rewards-empty">Positions summary not loaded.</div>`;
+    summaryCards.innerHTML = `<div class="rewards-empty">Positions summary not loaded.</div>`;
+    rewardsTableWrap.innerHTML = `<div class="rewards-empty">Positions summary not loaded.</div>`;
     return;
   }
-  walletDataLoaded = true;
   if (walletSummaryStatus) walletSummaryStatus.textContent = "Loading wallet inventory...";
-  render(latestSummary, null);
+  render();
 }
 
 async function refreshWalletData() {
+  setMainTab("operator");
+}
+
+async function loadPositionsSummaryOnDemand() {
   const wallet = walletInput.value.trim();
   if (!wallet) {
-    if (walletSummaryStatus) walletSummaryStatus.textContent = "Wallet required";
+    state.positionsSummary.status = "error";
+    state.positionsSummary.error = "Wallet required";
+    render();
     return;
   }
-  if (walletSummaryStatus) walletSummaryStatus.textContent = "Refreshing wallet data...";
+  state.positionsSummary.status = "loading";
+  state.positionsSummary.error = null;
+  render();
   try {
     const summaryRes = await fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`);
     if (!summaryRes.ok) {
       const body = await summaryRes.json().catch(() => ({}));
       throw new Error(body.error || `Request failed (${summaryRes.status})`);
     }
-    latestSummary = await summaryRes.json();
+    state.positionsSummary.data = await summaryRes.json();
+    state.positionsSummary.status = "ok";
+    state.positionsSummary.error = null;
+    state.positionsSummary.fetchedAt = Date.now();
     walletDataLoaded = true;
-    render(latestSummary, null);
+    render();
     if (walletSummaryStatus) walletSummaryStatus.textContent = `Wallet refreshed ${new Date().toLocaleTimeString()}`;
   } catch (err) {
-    if (walletSummaryStatus) walletSummaryStatus.textContent = err instanceof Error ? err.message : String(err);
+    state.positionsSummary.status = "error";
+    state.positionsSummary.error = err instanceof Error ? err.message : String(err);
+    render();
   }
 }
 
-async function loadSummary() {
+async function loadAlerts() {
   const wallet = walletInput.value.trim();
   if (!wallet) {
-    statusEl.textContent = "Wallet required";
+    state.alerts.status = "error";
+    state.alerts.error = "Wallet required";
+    render();
     return;
   }
-
-  statusEl.textContent = "Loading...";
   loadBtn.disabled = true;
   const walletChanged = latestWallet !== wallet;
   latestWallet = wallet;
-  latestSummary = null;
   if (walletChanged) {
-    latestAlertsPayload = null;
+    state.positionsSummary = { data: null, fetchedAt: null, status: "idle", error: null };
     walletDataLoaded = false;
     if (walletSummaryStatus) walletSummaryStatus.textContent = "Idle";
   }
-
+  state.alerts.status = "loading";
+  state.alerts.error = null;
+  render();
   try {
-    const [summaryRes, portfolioRes, alertsRes] = await Promise.all([
-      fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`),
-      fetch(`/data/portfolio/systems_index.json`).catch(() => null),
-      fetch(`/api/alerts?wallet=${encodeURIComponent(wallet)}`).catch(() => null)
-    ]);
-    if (!summaryRes.ok) {
-      const body = await summaryRes.json().catch(() => ({}));
-      throw new Error(body.error || `Request failed (${summaryRes.status})`);
+    const alertsRes = await fetch(`/api/alerts?wallet=${encodeURIComponent(wallet)}`);
+    if (!alertsRes.ok) {
+      const body = await alertsRes.json().catch(() => ({}));
+      throw new Error(body.error || `Request failed (${alertsRes.status})`);
     }
-    const summary = await summaryRes.json();
-    latestSummary = summary;
-
-    if (portfolioRes && portfolioRes.ok) {
-      latestPortfolioSystems = await portfolioRes.json().catch(() => null);
-    }
-    if (alertsRes && alertsRes.ok) {
-      latestAlertsPayload = await alertsRes.json().catch(() => null);
-      selectedOperatorSystemId = chooseDefaultOperatorSystemId();
-    } else {
-      latestAlertsPayload = null;
-      selectedOperatorSystemId = "sol_hedged";
-    }
-
-    render(summary, null);
-    statusEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    state.alerts.data = await alertsRes.json();
+    state.alerts.status = "ok";
+    state.alerts.error = null;
+    state.alerts.fetchedAt = Date.now();
+    selectedOperatorSystemId = chooseDefaultOperatorSystemId();
+    render();
   } catch (err) {
-    statusEl.textContent = err instanceof Error ? err.message : String(err);
+    state.alerts.status = "error";
+    state.alerts.error = err instanceof Error ? err.message : String(err);
+    state.alerts.data = null;
+    render();
   } finally {
     loadBtn.disabled = false;
   }
 }
 
-loadBtn.addEventListener("click", loadSummary);
+loadBtn.addEventListener("click", loadAlerts);
 walletInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") loadSummary();
+  if (e.key === "Enter") loadAlerts();
 });
 tabPortfolioMain?.addEventListener("click", () => setMainTab("portfolio"));
 tabOrcaMain?.addEventListener("click", () => setMainTab("orca"));
@@ -1704,7 +1782,7 @@ operatorModeToggle?.addEventListener("change", () => {
   operatorModeEnabled = Boolean(operatorModeToggle.checked);
   persistOperatorModeState(operatorModeEnabled);
   applyOperatorMode();
-  if (latestSummary) render(latestSummary, null);
+  render();
 });
 operatorModeEnabled = loadOperatorModeState();
 if (operatorModeToggle) operatorModeToggle.checked = operatorModeEnabled;
@@ -1717,4 +1795,4 @@ window.addEventListener("hashchange", () => {
 });
 setMainTab(operatorModeEnabled ? "operator" : loadMainTabState(), { skipHash: true });
 void ensureOrcaDataLoaded();
-loadSummary();
+loadAlerts();

@@ -33,3 +33,14 @@ test("orca operator panel block stays display-only (no risk-math recomputation)"
     assert.equal(block.includes(pattern), false, `operator panel must not contain recompute pattern: ${pattern}`);
   }
 });
+
+test("operator panel is alerts-driven with explicit source", () => {
+  const filePath = path.resolve(process.cwd(), "public/app.js");
+  const html = fs.readFileSync(filePath, "utf8");
+  const start = html.indexOf("// OPERATOR_ACTION_PANEL_START");
+  const end = html.indexOf("// OPERATOR_ACTION_PANEL_END");
+  const block = html.slice(start, end);
+
+  assert.equal(block.includes("Source: <code>/api/alerts</code> (system selector)"), true, "operator panel must declare alerts source");
+  assert.equal(block.includes("getAlertsSystems()"), true, "operator panel must use alerts systems");
+});
