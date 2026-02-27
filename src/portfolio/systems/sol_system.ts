@@ -39,6 +39,8 @@ function asNumLoose(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const PERP_FETCH_TIMEOUT_MS = Number(process.env.PORTFOLIO_FETCH_TIMEOUT_MS ?? 8000);
+
 async function fetchPerpExposureFromApi(): Promise<{
   shortSolQty: number | null;
   shortSolNotionalUsd: number | null;
@@ -51,8 +53,10 @@ async function fetchPerpExposureFromApi(): Promise<{
   const solMint = "So11111111111111111111111111111111111111112";
   const baseUrl = process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:3000";
   const url = `${baseUrl.replace(/\/$/, "")}/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PERP_FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
     const json = (await res.json()) as Record<string, unknown>;
     const jupiterPerps = (json.jupiterPerps as Record<string, unknown> | undefined) ?? {};
@@ -92,6 +96,8 @@ async function fetchPerpExposureFromApi(): Promise<{
     return { shortSolQty, shortSolNotionalUsd, leverage, liqPrice, markPrice };
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

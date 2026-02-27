@@ -10,6 +10,9 @@ export default async function handler(req: any, res: any) {
     }
 
     const result = await handleAlertsQuery(getQuery(req));
+    if (result.status === 200) {
+      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+    }
     return json(res, result.status, result.body);
   } catch (err) {
     return json(res, 200, {
