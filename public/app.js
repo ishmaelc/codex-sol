@@ -50,6 +50,7 @@ let currentMainTab = "portfolio";
 let latestOrcaData = null;
 let latestAlertsPayload = null;
 let walletDataLoaded = false;
+let selectedOperatorSystemId = "sol_hedged";
 
 function loadOperatorModeState() {
   try {
@@ -300,7 +301,7 @@ function renderAttentionStrip() {
 
   attentionStripWrap.innerHTML = `
     <div class="section-head">
-      <h2>Attention Strip</h2>
+      <h2>Portfolio Alerts</h2>
       <button type="button" id="attentionOpenOperatorBtn">Open Operator</button>
     </div>
     <div class="table-note">Level: ${escapeHtml(level)}</div>
@@ -311,11 +312,26 @@ function renderAttentionStrip() {
   });
 }
 
-function findSystemForConsole(systemId) {
-  const systemsFromIndex = Array.isArray(latestPortfolioSystems?.systems) ? latestPortfolioSystems.systems : [];
-  const systemsFromAlerts = Array.isArray(latestAlertsPayload?.systems) ? latestAlertsPayload.systems : [];
-  const systems = systemsFromIndex.length ? systemsFromIndex : systemsFromAlerts;
+function getAlertsSystems() {
+  return Array.isArray(latestAlertsPayload?.systems) ? latestAlertsPayload.systems : [];
+}
+
+function findAlertSystem(systemId) {
+  const systems = getAlertsSystems();
   return systems.find((system) => String(system?.id ?? system?.systemId ?? "").toLowerCase() === systemId) ?? null;
+}
+
+function chooseDefaultOperatorSystemId() {
+  const systems = getAlertsSystems();
+  if (!systems.length) return "sol_hedged";
+  const attentionLevel = String(latestAlertsPayload?.attention?.level ?? "none").toLowerCase();
+  if (attentionLevel !== "none") {
+    const attentionSystem = systems.find((system) => String(system?.capitalGuard?.level ?? "none").toLowerCase() !== "none");
+    if (attentionSystem) return String(attentionSystem?.id ?? attentionSystem?.systemId ?? "sol_hedged").toLowerCase();
+  }
+  const sol = systems.find((system) => String(system?.id ?? system?.systemId ?? "").toLowerCase() === "sol_hedged");
+  if (sol) return "sol_hedged";
+  return String(systems[0]?.id ?? systems[0]?.systemId ?? "sol_hedged").toLowerCase();
 }
 
 function computeWalletHeadlineValues(summary) {
@@ -379,7 +395,7 @@ function renderWalletHeadlines(summary) {
   const claimable = values.totalClaimableRewardsUsd == null ? "—" : fmtUsd(values.totalClaimableRewardsUsd);
   walletHeadlinesWrap.innerHTML = `
     <div class="section-head">
-      <h2>Wallet Headlines</h2>
+      <h2>Wallet Snapshot</h2>
       <span class="section-subtle">Inventory snapshot</span>
     </div>
     <div class="headlines-grid">
@@ -395,7 +411,8 @@ function renderSystemConsoles() {
   const systems = [
     { id: "sol_hedged", label: "SOL" },
     { id: "nx8_hedged", label: "NX8" }
-  ].map((meta) => ({ meta, system: findSystemForConsole(meta.id) }));
+  ].map((meta) => ({ meta, system: findAlertSystem(meta.id) }));
+  const alertsUnavailable = getAlertsSystems().length === 0;
   const dash = "—";
   const rendered = systems.map(({ system, meta }) => {
     const label = meta.label;
@@ -437,10 +454,13 @@ function renderSystemConsoles() {
     const hedgeText = hasMark && Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(1)}%` : dash;
     const liqText = hasLiq ? `${(Number(liq.liqBufferRatio) * 100).toFixed(1)}%` : dash;
     const rangeText = isNx8 ? "Managed" : hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(1)}%` : dash;
-    const hasMissingData = reasons.includes("MISSING_DATA");
-    const actionText = hasMissingData ? "MISSING_DATA" : guardTriggers.length ? String(guardTriggers[0]) : "No action";
+    const actionText = guardTriggers.length ? String(guardTriggers[0]) : "No action";
     const scoreText = Number.isFinite(Number(scoreObj?.score0to100)) ? Number(scoreObj.score0to100).toFixed(0) : dash;
     const scoreLabel = String(scoreObj?.label ?? "N/A").toUpperCase();
+    const dataBadges = [
+      reasons.includes("MISSING_DATA") ? `<span class="chip">MISSING_DATA</span>` : "",
+      (reasons.includes("PROXY_HEDGE") || snapshot?.basisRisk?.isProxyHedge === true) ? `<span class="chip">PROXY_HEDGE</span>` : ""
+    ].filter(Boolean);
     return {
       label,
       scoreChip: `${scoreText} • ${scoreLabel}`,
@@ -450,7 +470,8 @@ function renderSystemConsoles() {
       liq: liqText,
       range: rangeText,
       basisRisk: reasons.includes("PROXY_HEDGE") ? `<span class="chip">PROXY_HEDGE</span>` : dash,
-      action: actionText
+      action: actionText,
+      dataFlags: dataBadges.length ? dataBadges.join(" ") : dash
     };
   });
   const sol = rendered[0];
@@ -458,8 +479,8 @@ function renderSystemConsoles() {
 
   systemConsolesWrap.innerHTML = `
     <div class="section-head">
-      <h2>System Consoles</h2>
-      <span class="section-subtle">SOL + NX8 parity</span>
+      <h2>Systems Overview</h2>
+      ${alertsUnavailable ? `<span class="table-note">Alerts unavailable</span>` : ""}
     </div>
     <table class="summary-table system-consoles-table">
       <thead>
@@ -485,6 +506,7 @@ function renderSystemConsoles() {
         <tr><td>Liq Buffer</td><td>${escapeHtml(sol.liq)}</td><td>${escapeHtml(nx8.liq)}</td></tr>
         <tr><td>Range</td><td>${escapeHtml(sol.range)}</td><td>${escapeHtml(nx8.range)}</td></tr>
         <tr><td>Basis Risk</td><td>${sol.basisRisk}</td><td>${nx8.basisRisk}</td></tr>
+        <tr><td>Data Flags</td><td>${sol.dataFlags}</td><td>${nx8.dataFlags}</td></tr>
         <tr>
           <td>Action</td>
           <td><span class="action-text">${escapeHtml(sol.action)}</span> <a href="#operator" data-open-operator-inline="1">View Operator</a></td>
@@ -504,12 +526,12 @@ function renderSystemConsoles() {
 
 // OPERATOR_ACTION_PANEL_START
 // Ordering: engine-provided order (deterministic). UI must not sort.
-function getOperatorReasons(solSystem) {
-  const fromScoreObj = Array.isArray(solSystem?.scoreObj?.reasons) ? solSystem.scoreObj.reasons : [];
+function getOperatorReasons(system) {
+  const fromScoreObj = Array.isArray(system?.scoreObj?.reasons) ? system.scoreObj.reasons : [];
   if (fromScoreObj.length > 0) return fromScoreObj;
-  const fromScore = Array.isArray(solSystem?.score?.reasons) ? solSystem.score.reasons : [];
+  const fromScore = Array.isArray(system?.score?.reasons) ? system.score.reasons : [];
   if (fromScore.length > 0) return fromScore;
-  return Array.isArray(solSystem?.snapshot?.reasons) ? solSystem.snapshot.reasons : [];
+  return Array.isArray(system?.snapshot?.reasons) ? system.snapshot.reasons : [];
 }
 
 async function copyTextValue(text) {
@@ -525,11 +547,10 @@ async function copyTextValue(text) {
   ta.remove();
 }
 
-function operatorCopyPayload(kind, summary) {
-  const solSystem = summary?.solSystem ?? null;
-  const reasons = getOperatorReasons(solSystem);
-  const triggers = Array.isArray(solSystem?.capitalGuard?.triggers) ? solSystem.capitalGuard.triggers : [];
-  const level = String(solSystem?.capitalGuard?.level ?? "none");
+function operatorCopyPayload(kind, summary, selectedSystem) {
+  const reasons = getOperatorReasons(selectedSystem);
+  const triggers = Array.isArray(selectedSystem?.capitalGuard?.triggers) ? selectedSystem.capitalGuard.triggers : [];
+  const level = String(selectedSystem?.capitalGuard?.level ?? "none");
   const actionLines = [`LEVEL: ${level}`];
   if (triggers.length > 0) {
     actionLines.push("TRIGGERS:");
@@ -547,29 +568,38 @@ function operatorCopyPayload(kind, summary) {
   if (kind === "triggers") return triggers.length ? triggers.join("\n") : "No triggers";
   if (kind === "reasons") return reasons.length ? reasons.join("\n") : "No reasons";
   if (kind === "actionText") return actionLines.join("\n");
-  if (kind === "debug") return JSON.stringify(solSystem?.snapshot?.debugMath ?? null, null, 2);
+  if (kind === "debug") return JSON.stringify(selectedSystem?.snapshot?.debugMath ?? null, null, 2);
   return JSON.stringify(summary ?? null, null, 2);
 }
 
 function renderOperatorPanel(summary) {
   if (!operatorPanelWrap) return;
-  const solSystem = summary?.solSystem ?? null;
-  if (!solSystem) {
-    operatorPanelWrap.innerHTML = `<div class="rewards-empty">Load wallet summary to view operator panel.</div>`;
+  const systems = getAlertsSystems();
+  if (!systems.length) {
+    operatorPanelWrap.innerHTML = `<div class="rewards-empty">Load wallet summary to view operator panel.</div><div class="table-note">Source: /api/alerts (system selector)</div>`;
     return;
   }
-  const score = solSystem?.scoreObj ?? solSystem?.score ?? null;
-  const reasons = getOperatorReasons(solSystem);
-  const triggers = Array.isArray(solSystem?.capitalGuard?.triggers) ? solSystem.capitalGuard.triggers : [];
-  const actionText = operatorCopyPayload("actionText", summary);
-  const deepDiveSnapshot = JSON.stringify(solSystem?.snapshot ?? null, null, 2);
+  const selected = systems.find((system) => String(system?.id ?? system?.systemId ?? "").toLowerCase() === selectedOperatorSystemId) ?? systems[0];
+  const selectedId = String(selected?.id ?? selected?.systemId ?? "unknown").toLowerCase();
+  selectedOperatorSystemId = selectedId;
+  const score = selected?.scoreObj ?? selected?.score ?? null;
+  const reasons = getOperatorReasons(selected);
+  const triggers = Array.isArray(selected?.capitalGuard?.triggers) ? selected.capitalGuard.triggers : [];
+  const actionText = operatorCopyPayload("actionText", summary, selected);
+  const deepDiveSnapshot = JSON.stringify(selected?.snapshot ?? null, null, 2);
+  const selectedLabel = selectedId.includes("nx8") ? "NX8" : "SOL";
 
   operatorPanelWrap.innerHTML = `
-    <div class="table-note">Display-only canonical controls from <code>/api/positions?mode=summary</code>.</div>
+    <div class="table-note">Source: <code>/api/alerts</code> (system selector)</div>
+    <div class="toggle-row" style="margin-top:8px;">
+      <button type="button" id="operatorSelectSolBtn">SOL</button>
+      <button type="button" id="operatorSelectNx8Btn">NX8</button>
+      <span class="table-note">Selected: ${escapeHtml(selectedLabel)}</span>
+    </div>
     <table class="summary-table" style="margin-top:10px;">
       <tbody>
-        <tr><td>Capital Guard</td><td>${escapeHtml(String(solSystem?.capitalGuard?.level ?? "none").toUpperCase())}</td></tr>
-        <tr><td>Health</td><td>${escapeHtml(String(solSystem?.health?.overall ?? "n/a").toUpperCase())}</td></tr>
+        <tr><td>Capital Guard</td><td>${escapeHtml(String(selected?.capitalGuard?.level ?? "none").toUpperCase())}</td></tr>
+        <tr><td>Health</td><td>${escapeHtml(String(selected?.health?.overall ?? "n/a").toUpperCase())}</td></tr>
         <tr><td>Score</td><td>${escapeHtml(String(score?.label ?? "n/a"))} (${Number.isFinite(Number(score?.score0to100)) ? Number(score.score0to100).toFixed(0) : "n/a"})</td></tr>
       </tbody>
     </table>
@@ -582,7 +612,7 @@ function renderOperatorPanel(summary) {
     <h4 class="table-subhead">Debug Math (raw)</h4>
     <pre class="raw-json">${escapeHtml(JSON.stringify(solSystem?.snapshot?.debugMath ?? null, null, 2))}</pre>
     <details style="margin-top:10px;">
-      <summary><strong>SOL Deep Dive (canonical snapshot)</strong></summary>
+      <summary><strong>${escapeHtml(selectedLabel)} Deep Dive (canonical snapshot)</strong></summary>
       <pre class="raw-json" style="margin-top:8px;">${escapeHtml(deepDiveSnapshot)}</pre>
     </details>
     <div class="toggle-row" style="margin-top:10px;">
@@ -596,10 +626,18 @@ function renderOperatorPanel(summary) {
   `;
 
   const statusElLocal = document.getElementById("operatorCopyStatus");
+  document.getElementById("operatorSelectSolBtn")?.addEventListener("click", () => {
+    selectedOperatorSystemId = "sol_hedged";
+    renderOperatorPanel(summary);
+  });
+  document.getElementById("operatorSelectNx8Btn")?.addEventListener("click", () => {
+    selectedOperatorSystemId = "nx8_hedged";
+    renderOperatorPanel(summary);
+  });
   const bindCopy = (id, kind) => {
     document.getElementById(id)?.addEventListener("click", async () => {
       try {
-        await copyTextValue(operatorCopyPayload(kind, summary));
+        await copyTextValue(operatorCopyPayload(kind, summary, selected));
         if (statusElLocal) statusElLocal.textContent = `Copied ${kind}`;
       } catch (err) {
         if (statusElLocal) statusElLocal.textContent = err instanceof Error ? err.message : String(err);
@@ -1624,8 +1662,10 @@ async function loadSummary() {
     }
     if (alertsRes && alertsRes.ok) {
       latestAlertsPayload = await alertsRes.json().catch(() => null);
+      selectedOperatorSystemId = chooseDefaultOperatorSystemId();
     } else {
       latestAlertsPayload = null;
+      selectedOperatorSystemId = "sol_hedged";
     }
 
     render(summary, null);

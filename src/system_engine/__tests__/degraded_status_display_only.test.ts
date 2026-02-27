@@ -33,4 +33,8 @@ test("main UI contains no Hedge Drift section text", () => {
 
   assert.equal(indexSrc.includes("Hedge Drift"), false, "index.html should not render Hedge Drift text");
   assert.equal(appSrc.includes("Hedge Drift"), false, "app.js should not render Hedge Drift text");
+  assert.equal(indexSrc.includes("Open Orca Regime + Pool Rankings"), false, "top Orca link should be removed");
+  assert.equal(appSrc.includes("Portfolio Alerts"), true, "Portfolio alerts title should be present");
+  assert.equal(appSrc.includes("Systems Overview"), true, "Systems overview title should be present");
+  assert.equal(appSrc.includes("Wallet Snapshot"), true, "Wallet snapshot title should be present");
 });

@@ -21,3 +21,22 @@ test("system consoles block stays display-only (no math/sort recomputation)", ()
     assert.equal(block.includes(pattern), false, `system consoles must not contain recompute pattern: ${pattern}`);
   }
 });
+
+test("system consoles action row is trigger-driven, not forced by MISSING_DATA reason", () => {
+  const filePath = path.resolve(process.cwd(), "public/app.js");
+  const src = fs.readFileSync(filePath, "utf8");
+  const start = src.indexOf("// SYSTEM_CONSOLES_TABLE_START");
+  const end = src.indexOf("// SYSTEM_CONSOLES_TABLE_END");
+  const block = src.slice(start, end);
+
+  assert.equal(
+    block.includes('const actionText = guardTriggers.length ? String(guardTriggers[0]) : "No action";'),
+    true,
+    "action must derive from capitalGuard triggers"
+  );
+  assert.equal(
+    block.includes('hasMissingData ? "MISSING_DATA"'),
+    false,
+    "MISSING_DATA reason must not override action row"
+  );
+});
