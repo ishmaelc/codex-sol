@@ -8,12 +8,13 @@ import { rollupPortfolio } from "../portfolio/rollups.js";
 export async function getAlertsPayloadForRuntime(args: {
   asOfTs: string;
   wallet?: string | null;
+  apiBaseUrl?: string | null;
 }): Promise<AlertsPayload> {
   if (args.wallet) {
     try {
       const [solSnapshot, nx8Snapshot] = await Promise.all([
-        buildSolSystemSnapshot({ wallet: args.wallet }),
-        buildNx8SystemSnapshot({ wallet: args.wallet })
+        buildSolSystemSnapshot({ wallet: args.wallet, apiBaseUrl: args.apiBaseUrl ?? undefined }),
+        buildNx8SystemSnapshot({ wallet: args.wallet, apiBaseUrl: args.apiBaseUrl ?? undefined })
       ]);
       const liveSystems = [solSnapshot, nx8Snapshot].map((snapshot) => buildPortfolioIndexSystemEntry(snapshot));
       const alertsSystems = liveSystems.map((system) => ({

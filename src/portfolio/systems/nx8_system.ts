@@ -58,7 +58,7 @@ function extractNx8FromStrategyValuations(
   return { nx8KaminoQty, nx8PriceUsd };
 }
 
-async function fetchBtcPerpExposureFromApi(wallet: string | null): Promise<{
+async function fetchBtcPerpExposureFromApi(wallet: string | null, apiBaseUrl?: string): Promise<{
   nx8LongQty: number | null;
   nx8PriceUsd: number | null;
   shortBtcQty: number | null;
@@ -69,7 +69,7 @@ async function fetchBtcPerpExposureFromApi(wallet: string | null): Promise<{
   liqBufferPct: number | null;
 } | null> {
   if (!wallet) return null;
-  const baseUrl = process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:8787";
+  const baseUrl = apiBaseUrl ?? process.env.PORTFOLIO_POSITIONS_API_BASE_URL ?? "http://127.0.0.1:8787";
   const url = `${baseUrl.replace(/\/$/, "")}/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`;
   const wbtcMint = "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh";
   const nx8Mint = "NX8DuAWprqWAYDvpkkuhKnPfGRXQQhgiw85pCkgvFYk";
@@ -154,7 +154,7 @@ async function fetchBtcPerpExposureFromApi(wallet: string | null): Promise<{
   }
 }
 
-export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: number; wallet?: string }): Promise<HedgedSystemSnapshot> {
+export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: number; wallet?: string; apiBaseUrl?: string }): Promise<HedgedSystemSnapshot> {
   const operatorMode = getOperatorMode(normalizeCadenceHours(context?.monitorCadenceHours));
   const baseDir = path.resolve(process.cwd(), "public/data/orca");
   const [rankings, regime] = await Promise.all([
@@ -162,7 +162,7 @@ export async function buildNx8SystemSnapshot(context?: { monitorCadenceHours?: n
     readJson<Record<string, unknown>>(path.join(baseDir, "regime_state.json"))
   ]);
   const wallet = context?.wallet ?? process.env.PORTFOLIO_WALLET ?? null;
-  const btcPerp = await fetchBtcPerpExposureFromApi(wallet);
+  const btcPerp = await fetchBtcPerpExposureFromApi(wallet, context?.apiBaseUrl);
 
   const spotNx8 = btcPerp?.nx8PriceUsd ?? Number(process.env.PORTFOLIO_NX8_PRICE_USD ?? 0);
   const nx8Long = btcPerp?.nx8LongQty ?? Number(process.env.PORTFOLIO_NX8_LONG_UNITS ?? 0);
