@@ -1,4 +1,5 @@
 {
+  "framework": null,
   "routes": [
     { "src": "/api/(.*)", "dest": "/vercel/api/$1.ts" }
   ]

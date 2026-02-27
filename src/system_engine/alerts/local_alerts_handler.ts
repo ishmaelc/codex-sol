@@ -1,14 +1,24 @@
-import type { Request, Response } from "express";
 import { getAlertsPayloadForRuntime } from "./get_alerts_payload.js";
+
+type AlertsRequestLike = {
+  query?: {
+    wallet?: unknown;
+  };
+};
+
+type AlertsResponseLike = {
+  json: (payload: unknown) => unknown;
+  status: (code: number) => { json: (payload: unknown) => unknown };
+};
 
 export function createLocalAlertsHandler(deps: {
   getAlertsPayload: (args: { asOfTs: string; wallet?: string | null }) => Promise<unknown>;
 } = {
   getAlertsPayload: getAlertsPayloadForRuntime
 }) {
-  return async (req: Request, res: Response) => {
+  return async (req: AlertsRequestLike, res: AlertsResponseLike) => {
     try {
-      const wallet = String(req.query.wallet ?? "").trim() || null;
+      const wallet = String(req.query?.wallet ?? "").trim() || null;
       const payload = await deps.getAlertsPayload({
         asOfTs: new Date().toISOString(),
         wallet
