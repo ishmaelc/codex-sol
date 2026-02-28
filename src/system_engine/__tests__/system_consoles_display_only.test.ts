@@ -30,9 +30,9 @@ test("system consoles action row is trigger-driven, not forced by MISSING_DATA r
   const block = src.slice(start, end);
 
   assert.equal(
-    block.includes('const actionText = guardTriggers.length ? String(guardTriggers[0]) : "No action";'),
+      block.includes('const actionText = generateRebalanceActionMessage(system, label);'),
     true,
-    "action must derive from capitalGuard triggers"
+      "action must derive from system snapshot + capitalGuard triggers"
   );
   assert.equal(
     block.includes('hasMissingData ? "MISSING_DATA"'),
