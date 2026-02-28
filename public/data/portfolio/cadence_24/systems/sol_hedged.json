@@ -1,18 +1,18 @@
 {
   "id": "sol_hedged",
   "label": "SOL Hedged Yield System",
-  "netDelta": -11.575299999999999,
-  "totalLong": 43.4073,
-  "totalShort": 54.9826,
+  "netDelta": -11.575800000000001,
+  "totalLong": 43.4093,
+  "totalShort": 54.9851,
   "leverage": null,
   "liqBufferPct": null,
-  "score": 0.47023842277346817,
+  "score": 0.47092431866361095,
   "breakdown": {
-    "delta": 0.11110957527113352,
+    "delta": 0.11111213495725569,
     "hedge": 0.3039085714285714,
     "range": 1,
-    "stability": 0.9345166666666667,
-    "weighted": 0.47023842277346817,
+    "stability": 0.9390833333333333,
+    "weighted": 0.47092431866361095,
     "status": "orange"
   },
   "riskFlags": [
@@ -23,7 +23,7 @@
   ],
   "canonicalLabel": "YELLOW",
   "canonicalScore": {
-    "score0to1": 0.47023842277346817,
+    "score0to1": 0.47092431866361095,
     "score0to100": 47,
     "label": "YELLOW",
     "reasons": [
@@ -42,9 +42,9 @@
   },
   "canonicalSnapshot": {
     "systemId": "SOL_HEDGED_YIELD",
-    "asOfTs": "2026-02-28T06:36:22.099Z",
+    "asOfTs": "2026-02-28T12:41:55.500Z",
     "pricesUsed": {
-      "mark": 78.90435393,
+      "mark": 79.02630591,
       "baseAsset": "SOL"
     },
     "dataFreshness": {
@@ -53,9 +53,9 @@
       "hasRangeBuffer": true
     },
     "exposures": {
-      "totalLong": 43.4073,
-      "totalShort": 54.9826,
-      "netDelta": -11.575299999999999,
+      "totalLong": 43.4093,
+      "totalShort": 54.9851,
+      "netDelta": -11.575800000000001,
       "hedgeRatio": 1
     },
     "liquidation": {
@@ -64,9 +64,9 @@
       "leverage": null
     },
     "range": {
-      "rangeLower": 64.837048,
-      "rangeUpper": 92.971659,
-      "rangeBufferRatio": 0.1783
+      "rangeLower": 64.922684,
+      "rangeUpper": 93.129928,
+      "rangeBufferRatio": 0.17850000000000002
     },
     "basisRisk": {
       "isProxyHedge": false,
@@ -74,12 +74,12 @@
       "reasonTag": null
     },
     "debugMath": {
-      "markPrice": 78.90435393,
+      "markPrice": 79.02630591,
       "liqBufferRatio": null,
-      "rangeBufferRatio": 0.1783,
-      "hedgeRatio": 1.26666712741866,
-      "netDelta": -11.575299999999999,
-      "longSolFromWallet": 43.4073,
+      "rangeBufferRatio": 0.17850000000000002,
+      "hedgeRatio": 1.2666663595128234,
+      "netDelta": -11.575800000000001,
+      "longSolFromWallet": 43.4093,
       "longSolNative": null,
       "longSolSpotWrapped": null,
       "longSolKamino": null,
@@ -102,8 +102,8 @@
       "source": "orca_plans",
       "asset": "SOL",
       "direction": "long",
-      "quantityBase": 43.4073,
-      "notionalUsd": 3425.024962345689,
+      "quantityBase": 43.4093,
+      "notionalUsd": 3430.4766211389633,
       "confidence": "low",
       "notes": "Long SOL exposure inferred from Orca/Kamino deployment mix."
     },
@@ -111,8 +111,8 @@
       "source": "api_positions",
       "asset": "SOL",
       "direction": "short",
-      "quantityBase": 54.9826,
-      "notionalUsd": 4338.366530391618,
+      "quantityBase": 54.9851,
+      "notionalUsd": 4345.269333091942,
       "confidence": "low",
       "notes": "Fallback to hedge planner sizing."
     }
@@ -121,12 +121,12 @@
     "source": "jupiter_perps",
     "asset": "SOL",
     "side": "short",
-    "quantityBase": 54.9826,
-    "notionalUsd": 4338.366530391618,
+    "quantityBase": 54.9851,
+    "notionalUsd": 4345.269333091942,
     "leverage": null,
     "liqPrice": null,
-    "markPrice": 78.90435393,
+    "markPrice": 79.02630591,
     "liqBufferPct": null
   },
-  "updatedAt": "2026-02-28T06:36:22.099Z"
+  "updatedAt": "2026-02-28T12:41:55.501Z"
 }
