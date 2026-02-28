@@ -1,33 +1,35 @@
 {
   "id": "sol_hedged",
   "label": "SOL Hedged Yield System",
-  "netDelta": 2.8047894736842096,
-  "totalLong": 56.095789473684206,
-  "totalShort": 53.291,
+  "netDelta": -11.176499999999997,
+  "totalLong": 41.9118,
+  "totalShort": 53.0883,
   "leverage": null,
   "liqBufferPct": null,
-  "score": 0.7227592380952381,
+  "score": 0.469170903592783,
   "breakdown": {
-    "delta": 0.8333333333333334,
+    "delta": 0.11110952046917588,
     "hedge": 0.3039085714285714,
     "range": 1,
-    "stability": 0.9328,
-    "weighted": 0.7227592380952381,
-    "status": "yellow"
+    "stability": 0.9274,
+    "weighted": 0.469170903592783,
+    "status": "orange"
   },
   "riskFlags": [
     "MISSING_DATA",
     "RANGE_EDGE_WARN",
+    "DELTA_DRIFT",
     "LOW_LIQ_BUFFER"
   ],
   "canonicalLabel": "YELLOW",
   "canonicalScore": {
-    "score0to1": 0.7227592380952381,
-    "score0to100": 72,
+    "score0to1": 0.469170903592783,
+    "score0to100": 47,
     "label": "YELLOW",
     "reasons": [
       "MISSING_DATA",
       "RANGE_EDGE_WARN",
+      "DELTA_DRIFT",
       "LOW_LIQ_BUFFER"
     ],
     "components": {
@@ -40,9 +42,9 @@
   },
   "canonicalSnapshot": {
     "systemId": "SOL_HEDGED_YIELD",
-    "asOfTs": "2026-02-27T19:02:45.163Z",
+    "asOfTs": "2026-02-28T01:46:45.542Z",
     "pricesUsed": {
-      "mark": 81.46151629,
+      "mark": 81.82841337,
       "baseAsset": "SOL"
     },
     "dataFreshness": {
@@ -51,10 +53,10 @@
       "hasRangeBuffer": true
     },
     "exposures": {
-      "totalLong": 56.095789473684206,
-      "totalShort": 53.291,
-      "netDelta": 2.8047894736842096,
-      "hedgeRatio": 0.9500000000000001
+      "totalLong": 41.9118,
+      "totalShort": 53.0883,
+      "netDelta": -11.176499999999997,
+      "hedgeRatio": 1
     },
     "liquidation": {
       "liqPrice": null,
@@ -62,9 +64,9 @@
       "leverage": null
     },
     "range": {
-      "rangeLower": 66.765415,
-      "rangeUpper": 96.157617,
-      "rangeBufferRatio": 0.1804
+      "rangeLower": 67.220133,
+      "rangeUpper": 96.436694,
+      "rangeBufferRatio": 0.17850000000000002
     },
     "basisRisk": {
       "isProxyHedge": false,
@@ -72,11 +74,17 @@
       "reasonTag": null
     },
     "debugMath": {
-      "markPrice": 81.46151629,
+      "markPrice": 81.82841337,
       "liqBufferRatio": null,
-      "rangeBufferRatio": 0.1804,
-      "hedgeRatio": 0.9500000000000001,
-      "netDelta": 2.8047894736842096,
+      "rangeBufferRatio": 0.17850000000000002,
+      "hedgeRatio": 1.2666671438592472,
+      "netDelta": -11.176499999999997,
+      "longSolFromWallet": 41.9118,
+      "longSolNative": null,
+      "longSolSpotWrapped": null,
+      "longSolKamino": null,
+      "longSolOrca": null,
+      "longSolOrcaFromSummaryResidual": null,
       "hedgeScoreInputLeverage": 3,
       "hedgeScoreInputLiqBufferPct": 0,
       "hedgeScoreInputFundingApr": 3.504,
@@ -85,6 +93,7 @@
     "reasons": [
       "MISSING_DATA",
       "RANGE_EDGE_WARN",
+      "DELTA_DRIFT",
       "LOW_LIQ_BUFFER"
     ]
   },
@@ -93,8 +102,8 @@
       "source": "orca_plans",
       "asset": "SOL",
       "direction": "long",
-      "quantityBase": 56.095789473684206,
-      "notionalUsd": 4569.648068010937,
+      "quantityBase": 41.9118,
+      "notionalUsd": 3429.576095480766,
       "confidence": "low",
       "notes": "Long SOL exposure inferred from Orca/Kamino deployment mix."
     },
@@ -102,8 +111,8 @@
       "source": "api_positions",
       "asset": "SOL",
       "direction": "short",
-      "quantityBase": 53.291,
-      "notionalUsd": 4341.16566461039,
+      "quantityBase": 53.0883,
+      "notionalUsd": 4344.131357510571,
       "confidence": "low",
       "notes": "Fallback to hedge planner sizing."
     }
@@ -112,12 +121,12 @@
     "source": "jupiter_perps",
     "asset": "SOL",
     "side": "short",
-    "quantityBase": 53.291,
-    "notionalUsd": 4341.16566461039,
+    "quantityBase": 53.0883,
+    "notionalUsd": 4344.131357510571,
     "leverage": null,
     "liqPrice": null,
-    "markPrice": 81.46151629,
+    "markPrice": 81.82841337,
     "liqBufferPct": null
   },
-  "updatedAt": "2026-02-27T19:02:45.163Z"
+  "updatedAt": "2026-02-28T01:46:45.542Z"
 }
