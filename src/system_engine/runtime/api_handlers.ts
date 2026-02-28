@@ -9,7 +9,7 @@ import { withTimeout } from "./with_timeout.js";
 export type ApiResult = { status: number; body: unknown };
 
 const DEFAULT_POSITIONS_TIMEOUT_MS = Number(process.env.POSITIONS_TIMEOUT_MS ?? 7000);
-const DEFAULT_ALERTS_TIMEOUT_MS = Number(process.env.ALERTS_TIMEOUT_MS ?? 5000);
+const DEFAULT_ALERTS_TIMEOUT_MS = Number(process.env.ALERTS_TIMEOUT_MS ?? 8000);
 
 function timeoutMsOrDefault(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
