@@ -138,6 +138,17 @@ function fmtDateTime(ms) {
   return new Date(n).toLocaleString();
 }
 
+// format deposit recommendation object for display
+function formatDepositRec(dr) {
+  if (!dr) return "n/a";
+  const qtyA = Number.isFinite(Number(dr.tokenAQty)) ? Number(dr.tokenAQty).toFixed(4) : "n/a";
+  const qtyB = Number.isFinite(Number(dr.tokenBQty)) ? Number(dr.tokenBQty).toFixed(2) : "n/a";
+  let str = `${qtyA} ${dr.tokenASymbol} + ${qtyB} ${dr.tokenBSymbol}`;
+  const hedgeQty = Number.isFinite(Number(dr.hedgeShortQty)) ? Number(dr.hedgeShortQty).toFixed(4) : null;
+  if (hedgeQty && dr.tokenASymbol) str += ` (short ~${hedgeQty} ${dr.tokenASymbol})`;
+  return str;
+}
+
 function shortPk(pk) {
   if (!pk || typeof pk !== "string") return "n/a";
   if (pk.length < 12) return pk;
@@ -636,6 +647,18 @@ function renderSystemConsoles() {
           .map((reason) => escapeHtml(reason))
           .join(" | ")}</div></details>`
       : "";
+
+    // deposit recommendation text (if available)
+    let depositText = dash;
+    if (snapshot?.depositRecommendation) {
+      const dr = snapshot.depositRecommendation;
+      const qtyA = Number.isFinite(Number(dr.tokenAQty)) ? Number(dr.tokenAQty).toFixed(4) : "n/a";
+      const qtyB = Number.isFinite(Number(dr.tokenBQty)) ? Number(dr.tokenBQty).toFixed(2) : "n/a";
+      const hedgeQty = Number.isFinite(Number(dr.hedgeShortQty)) ? Number(dr.hedgeShortQty).toFixed(4) : "n/a";
+      depositText = `${qtyA} ${dr.tokenASymbol} + ${qtyB} ${dr.tokenBSymbol}`;
+      if (hedgeQty !== "n/a") depositText += ` (short ~${hedgeQty} ${dr.tokenASymbol})`;
+    }
+
     return {
       label,
       scoreChip: scoreText,
@@ -647,6 +670,7 @@ function renderSystemConsoles() {
       liq: liqText,
       range: rangeText,
       basisRisk: reasons.includes("PROXY_HEDGE") ? `<span class="chip">PROXY_HEDGE</span>` : dash,
+      deposit: depositText,
       action: actionText,
       actionChecklist: actionChecklistHtml,
       dataFlags: dataBadges.length ? `${dataBadges.join(" ")}${missingWhy}` : dash
@@ -693,6 +717,7 @@ function renderSystemConsoles() {
         <tr><td>Liq Buffer</td><td>${escapeHtml(sol.liq)}</td><td>${escapeHtml(nx8.liq)}</td></tr>
         <tr><td>Range</td><td>${escapeHtml(sol.range)}</td><td>${escapeHtml(nx8.range)}</td></tr>
         <tr><td>Basis Risk</td><td>${sol.basisRisk}</td><td>${nx8.basisRisk}</td></tr>
+        <tr><td>Deposit Suggestion</td><td>${escapeHtml(sol.deposit)}</td><td>${escapeHtml(nx8.deposit)}</td></tr>
         <tr><td>Data Flags</td><td>${sol.dataFlags}</td><td>${nx8.dataFlags}</td></tr>
         <tr>
           <td style="vertical-align:top;">Action</td>
@@ -801,6 +826,7 @@ function renderOperatorPanel() {
         <tr><td>Capital Guard</td><td>${escapeHtml(String(selected?.capitalGuard?.level ?? "none").toUpperCase())}</td></tr>
         <tr><td>Health</td><td>${escapeHtml(String(selected?.health?.overall ?? "n/a").toUpperCase())}</td></tr>
         <tr><td>Score</td><td>${escapeHtml(String(score?.label ?? "n/a"))} (${Number.isFinite(Number(score?.score0to100)) ? Number(score.score0to100).toFixed(0) : "n/a"})</td></tr>
+        <tr><td>Deposit Suggestion</td><td>${escapeHtml(formatDepositRec(selected?.snapshot?.depositRecommendation))}</td></tr>
       </tbody>
     </table>
     <h4 class="table-subhead">Triggers</h4>

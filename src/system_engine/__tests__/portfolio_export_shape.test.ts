@@ -65,6 +65,11 @@ test("portfolio systems index entry preserves legacy fields and adds canonical s
   assertRatio(exported.snapshot.exposures.hedgeRatio);
   assertRatio(exported.snapshot.liquidation.liqBufferRatio);
   assertRatio(exported.snapshot.range.rangeBufferRatio);
+  // depositRecommendation should be passed through if provided
+  const customDeposit = { tokenAQty: 1, tokenBQty: 2, tokenAUsd: 100, tokenBUsd: 200, hedgeShortQty: 0.5, hedgeUsd: 50, rangePreset: "Base", riskCapitalPct: 0.5, riskAssetLabel: "SOL", tokenASymbol: "SOL", tokenBSymbol: "USDC" };
+  const withDep = buildPortfolioIndexSystemEntry(mkSnapshot({ depositRecommendation: customDeposit }));
+  if (!withDep.snapshot) throw new Error("missing snapshot post-deposit");
+  assert.deepEqual(withDep.snapshot.depositRecommendation, customDeposit);
 });
 
 test("nx8 entry includes proxy hedge basis risk in canonical snapshot", () => {

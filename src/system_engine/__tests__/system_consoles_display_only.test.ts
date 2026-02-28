@@ -20,6 +20,7 @@ test("system consoles block stays display-only (no math/sort recomputation)", ()
   for (const pattern of forbiddenPatterns) {
     assert.equal(block.includes(pattern), false, `system consoles must not contain recompute pattern: ${pattern}`);
   }
+  assert.equal(block.includes("snapshot.depositRecommendation"), true, "UI must read deposit recommendation from snapshot");
 });
 
 test("system consoles action row is trigger-driven, not forced by MISSING_DATA reason", () => {

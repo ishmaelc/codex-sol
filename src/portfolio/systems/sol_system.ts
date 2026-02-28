@@ -12,6 +12,8 @@ import { scoreFromPortfolioScore } from "../../system_engine/score_adapter.js";
 import { buildSolSystemSnapshotFromSummary } from "../../system_engine/sol/build_snapshot.js";
 import { mapStatusToLabel } from "../../system_engine/label.js";
 import type { HedgedSystemDefinition, HedgedSystemSnapshot, RiskFlags } from "../types.js";
+import { calculateDeposit } from "../../system_engine/positions/deposit_calculator.js";
+import type { DepositRecommendation } from "../types.js";
 
 type JsonObj = Record<string, unknown>;
 
@@ -304,6 +306,44 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
     dataFreshness: canonicalSnapshot.dataFreshness
   });
 
+  // deposit recommendation logic (Phase 2b)
+  let depositRec: DepositRecommendation | null = null;
+  if (selectedSol) {
+    // simple 50/50 USD ratio for SOL/USDC pools
+    const ratio = {
+      tokenARatioUSD: 0.5,
+      tokenBRatioUSD: 0.5,
+      tokenASymbol: "SOL",
+      tokenBSymbol: "USDC",
+      riskAssetRatioUSD: 0.5,
+      riskAssetLabel: "SOL"
+    };
+    const hedgeUsdPerTopk = deployUnits > 0 ? (totalShortSol * spot) / deployUnits : 0;
+    const calc = calculateDeposit({
+      totalCapitalUsd: deployUsd,
+      allocationPct: 1,
+      depositRatio: ratio,
+      hedgeSizePerTopk: hedgeUsdPerTopk,
+      solSpotUsd: spot,
+      shortAssetSpotUsd: spot,
+      shortAssetSymbol: "SOL",
+      rangePreset: basePreset?.label ? String(basePreset.label) : "Base"
+    });
+    depositRec = {
+      tokenAQty: calc.tokenAQty.toNumber(),
+      tokenBQty: calc.tokenBQty.toNumber(),
+      tokenAUsd: calc.tokenAUsd.toNumber(),
+      tokenBUsd: calc.tokenBUsd.toNumber(),
+      hedgeShortQty: calc.hedgeShortQty.toNumber(),
+      hedgeUsd: calc.hedgeUsd.toNumber(),
+      rangePreset: calc.rangePreset,
+      riskCapitalPct: calc.riskCapitalPct,
+      riskAssetLabel: calc.riskAssetLabel,
+      tokenASymbol: ratio.tokenASymbol,
+      tokenBSymbol: ratio.tokenBSymbol
+    };
+  }
+
   return {
     id: "sol_hedged",
     label: "SOL Hedged Yield System",
@@ -379,6 +419,8 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
       markPrice: markPrice || null,
       liqBufferPct
     },
+    // include computed deposit recommendation field (null when no recommendation)
+    depositRecommendation: depositRec,
     updatedAt: new Date().toISOString()
   };
 }
