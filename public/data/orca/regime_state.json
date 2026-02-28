@@ -1,28 +1,28 @@
 {
-  "generatedAt": "2026-02-28T12:41:55.473Z",
+  "generatedAt": "2026-02-28T18:31:16.200Z",
   "regime": "MODERATE",
   "confidence": 0.99,
-  "score": 0.4765,
+  "score": 0.4718,
   "metrics": {
-    "vol7dPct": 117.68689336366074,
-    "vol30dPct": 107.24557917551867,
-    "vr": 1.0973589239613668,
+    "vol7dPct": 116.39152126714309,
+    "vol30dPct": 107.06305156944961,
+    "vr": 1.0871306165941133,
     "fundingAprPct": 3.504,
-    "volumeTvl24h": 1.8268653077984653,
-    "volumeTvl7dAvg": 1.7165007970361854,
-    "volumeTvl30dAvg": 2.3048810122280075,
-    "volumeTvlTrendRatio": 0.7447242560156866,
+    "volumeTvl24h": 1.6714140441808265,
+    "volumeTvl7dAvg": 1.735617065414426,
+    "volumeTvl30dAvg": 2.2534433135531544,
+    "volumeTvlTrendRatio": 0.7702066677141138,
     "volumeTvlTrendLabel": "falling"
   },
   "reasons": [
-    "30d realized vol 107.2%",
-    "VR 1.10 (accelerating short-term vol)",
+    "30d realized vol 107.1%",
+    "VR 1.09 (accelerating short-term vol)",
     "SOL perp funding proxy 3.5% APR",
-    "Volume/TVL trend falling (0.74x)"
+    "Volume/TVL trend falling (0.77x)"
   ],
   "hysteresis": {
     "previousRegime": "MODERATE",
-    "previousScore": 0.4725,
+    "previousScore": 0.4765,
     "applied": false
   },
   "dataSources": {

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-28T12:41:55.488Z",
+  "generatedAt": "2026-02-28T18:31:16.240Z",
   "regime": "MODERATE",
   "maxPools": 1,
   "selected": [
@@ -9,12 +9,12 @@
       "pool": "SOL/USDC",
       "type": "SOL-STABLE",
       "rank": 1,
-      "score": 62.87,
-      "tvlUsd": 25592966.99,
-      "volume24hUsd": 147333259.4,
-      "feeAprPct": 84.05,
-      "depthUsd1Pct": 3109545.49,
-      "depthUsd2Pct": 5908136.43,
+      "score": 61.96,
+      "tvlUsd": 26325152,
+      "volume24hUsd": 143309518.74,
+      "feeAprPct": 79.48,
+      "depthUsd1Pct": 3198505.97,
+      "depthUsd2Pct": 6077161.34,
       "depthTvl1PctRatio": 0.1215,
       "reasons": [
         {
@@ -34,7 +34,7 @@
     "minVolume24hUsd": 75000
   },
   "summary": {
-    "candidatesConsidered": 10,
+    "candidatesConsidered": 7,
     "selectedCount": 1
   },
   "notes": [
