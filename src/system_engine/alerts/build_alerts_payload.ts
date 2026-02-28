@@ -15,6 +15,7 @@ type AlertsSystemInput = {
     dataFreshness?: unknown;
     debugMath?: unknown;
     reasons?: unknown;
+        depositRecommendation?: unknown;
     [key: string]: unknown;
   } | null;
 };
@@ -41,6 +42,7 @@ export type AlertsPayload = {
       dataFreshness?: unknown;
       debugMath?: unknown;
       reasons?: unknown;
+        depositRecommendation?: unknown;
     };
   }>;
   attention: {
@@ -82,7 +84,8 @@ export function buildAlertsPayload(input: {
         range: system.snapshot?.range,
         dataFreshness: system.snapshot?.dataFreshness,
         debugMath: system.snapshot?.debugMath,
-        reasons: system.snapshot?.reasons
+        reasons: system.snapshot?.reasons,
+        depositRecommendation: (system.snapshot as any)?.depositRecommendation ?? null
       }
     };
   });

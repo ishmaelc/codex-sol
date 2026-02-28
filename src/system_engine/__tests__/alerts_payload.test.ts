@@ -90,3 +90,24 @@ test("alerts payload passes snapshot canonical values without recomputation", ()
   const outRatio = (payload.systems[0]?.snapshot.range as { rangeBufferRatio?: number } | undefined)?.rangeBufferRatio;
   assert.equal(outRatio, inputRatio);
 });
+
+// ensure deposit recommendations are carried through to alerts payload
+test("alerts payload includes depositRecommendation when present", () => {
+  const deposit = { tokenAQty: 1, tokenBQty: 2, tokenAUsd: 100, tokenBUsd: 200, hedgeShortQty: 0.5, hedgeUsd: 50, rangePreset: "Base", riskCapitalPct: 0.5, riskAssetLabel: "SOL", tokenASymbol: "SOL", tokenBSymbol: "USDC" };
+  const payload = buildAlertsPayload({
+    asOfTs: "2026-02-27T00:00:00.000Z",
+    portfolioRollup: {
+      healthRollup: { overall: "strong" },
+      capitalGuardRollup: { level: "none", triggers: [] }
+    },
+    systems: [
+      {
+        id: "sol_hedged",
+        health: { overall: "strong" },
+        capitalGuard: { level: "none", triggers: [] },
+        snapshot: { depositRecommendation: deposit }
+      }
+    ]
+  });
+  assert.deepEqual(payload.systems[0]?.snapshot.depositRecommendation, deposit);
+});

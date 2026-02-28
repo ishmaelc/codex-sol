@@ -46,6 +46,20 @@ export type SystemScoreBreakdown = {
   status: "green" | "yellow" | "orange" | "red";
 };
 
+export type DepositRecommendation = {
+  tokenAQty: number;
+  tokenBQty: number;
+  tokenAUsd: number;
+  tokenBUsd: number;
+  hedgeShortQty: number;
+  hedgeUsd: number;
+  rangePreset: string;
+  riskCapitalPct: number;
+  riskAssetLabel: string;
+  tokenASymbol: string;
+  tokenBSymbol: string;
+};
+
 export type HedgedSystemSnapshot = {
   id: string;
   label: string;
@@ -64,6 +78,9 @@ export type HedgedSystemSnapshot = {
   health?: HealthResult;
   capitalGuard?: CapitalGuardResult;
   canonicalSnapshot?: CanonicalSystemSnapshot;
+  /** Optional suggestion for how much to deposit and hedge */
+  /** optional; null when no recommendation available */
+  depositRecommendation?: DepositRecommendation | null;
   updatedAt: string;
 };
 
@@ -95,6 +112,8 @@ export type CanonicalSystemSnapshot = {
     rangeUpper: number | null;
     rangeBufferRatio: number | null;
   };
+  // snapshot-level deposit suggestion; may be null when not relevant
+  depositRecommendation?: DepositRecommendation | null;
   basisRisk: {
     isProxyHedge: boolean;
     basisPenalty: number;
