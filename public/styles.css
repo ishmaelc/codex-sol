@@ -364,12 +364,40 @@ button:hover {
 }
 
 .action-text {
-  display: inline-block;
-  max-width: 220px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
+  display: block;
+  max-width: 100%;
+  word-wrap: break-word;
+  white-space: normal;
+  overflow-wrap: break-word;
+  vertical-align: baseline;
+  font-size: 0.95em;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+/* Rebalance action checklist and details */
+.action-text + details summary {
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+  font-weight: 500;
+}
+
+.action-text + details summary:hover {
+  color: var(--accent);
+}
+
+.action-text + details div {
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.action-text + details div .table-note {
+  margin: 6px 0;
+  padding: 4px;
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+  font-family: "IBM Plex Mono", monospace;
 }
 
 .system-console-card {

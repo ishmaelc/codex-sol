@@ -467,6 +467,95 @@ function renderWalletHeadlines() {
   `;
 }
 
+// REBALANCE_ACTION_HELPERS_START
+/**
+ * Convert system snapshot + capital guard triggers into user-friendly action messages.
+ */
+function generateRebalanceActionMessage(system, label) {
+  if (!system) return "No action";
+  
+  const triggers = Array.isArray(system?.capitalGuard?.triggers) ? system.capitalGuard.triggers : [];
+  const snapshot = system?.snapshot ?? {};
+  const exposures = snapshot?.exposures ?? {};
+  const liq = snapshot?.liquidation ?? {};
+  
+  const netDelta = Number.isFinite(Number(exposures?.netDelta))
+    ? Number(exposures.netDelta)
+    : Number.isFinite(Number(exposures?.netSOLDelta))
+      ? Number(exposures.netSOLDelta)
+      : null;
+  
+  const totalLong = Number.isFinite(Number(exposures?.totalLongNotional))
+    ? Number(exposures.totalLongNotional)
+    : Number.isFinite(Number(exposures?.totalLongSOL))
+      ? Number(exposures.totalLongSOL)
+      : null;
+
+  // Check for liquidation buffer emergency
+  if (liq?.liqBufferRatio != null && liq.liqBufferRatio < 0.20) {
+    return `🔴 ${label}: LIQ BUFFER CRITICAL (${(liq.liqBufferRatio * 100).toFixed(1)}%) — add collateral or reduce leverage immediately`;
+  }
+
+  // Check for delta drift
+  if (netDelta != null && totalLong != null && totalLong > 0) {
+    const driftPct = Math.abs(netDelta) / totalLong;
+    if (driftPct > 0.01) {
+      const shortAmount = (netDelta > 0 ? netDelta : Math.abs(netDelta)) * 0.5; // Rebalance ~halfway
+      const action = netDelta > 0 ? "Short" : "Long";
+      if (driftPct > 0.02) {
+        return `🔴 ${label}: DRIFT CRITICAL (${(driftPct * 100).toFixed(1)}%) — ${action} ${Math.abs(shortAmount).toFixed(0)} more`;
+      } else {
+        return `🟡 ${label}: DRIFT WARNING (${(driftPct * 100).toFixed(1)}%) — ${action} ${Math.abs(shortAmount).toFixed(0)} to rebalance`;
+      }
+    }
+  }
+
+  // No specific action
+  if (triggers.length > 0) {
+    return `${label}: ${String(triggers[0])}`;
+  }
+  return `${label}: No action`;
+}
+
+/**
+ * Generate detailed action checklist for user
+ */
+function generateActionChecklist(system, label) {
+  if (!system) return "";
+  
+  const triggers = Array.isArray(system?.capitalGuard?.triggers) ? system.capitalGuard.triggers : [];
+  if (triggers.length === 0) return "";
+  
+  const snapshot = system?.snapshot ?? {};
+  const exposures = snapshot?.exposures ?? {};
+  const netDelta = Number.isFinite(Number(exposures?.netDelta)) ? Number(exposures.netDelta) : Number.isFinite(Number(exposures?.netSOLDelta)) ? Number(exposures.netSOLDelta) : null;
+  
+  let checklistHTML = `<details style="margin-top:8px;"><summary class="table-note" style="cursor:pointer;">Manual Execution Steps</summary><div style="margin-top:6px;background:#1a1f2e;padding:8px;border-radius:4px;">`;
+  
+  if (netDelta != null && Math.abs(netDelta) > 0) {
+    const action = netDelta > 0 ? "SHORT" : "LONG";
+    const amount = Math.abs(netDelta);
+    checklistHTML += `
+      <div class="table-note" style="margin:4px 0;">
+        <strong>Step 1: Open Jupiter Perpetuals</strong><br/>
+        Go to <span style="font-family:monospace;">jupiter.ag</span> → Perpetuals → ${label === "SOL" ? "SOL" : "BTC"}
+      </div>
+      <div class="table-note" style="margin:4px 0;">
+        <strong>Step 2: Place ${action} Order</strong><br/>
+        ${action} <span style="font-family:monospace;color:#4ade80;">${amount.toFixed(0)}</span> ${label === "SOL" ? "SOL" : "BTC equiv"} at 1.0x leverage
+      </div>
+      <div class="table-note" style="margin:4px 0;">
+        <strong>Step 3: Verify in Dashboard</strong><br/>
+        Refresh this page—delta should rebalance toward safe zone
+      </div>
+    `;
+  }
+  
+  checklistHTML += `</div></details>`;
+  return checklistHTML;
+}
+// REBALANCE_ACTION_HELPERS_END
+
 // SYSTEM_CONSOLES_TABLE_START
 function renderSystemConsoles() {
   if (!systemConsolesWrap) return;
@@ -534,7 +623,8 @@ function renderSystemConsoles() {
     const hedgeText = hasMark && Number.isFinite(Number(exposures?.hedgeRatio)) ? `${(Number(exposures.hedgeRatio) * 100).toFixed(1)}%` : missingText;
     const liqText = hasLiq ? `${(Number(liq.liqBufferRatio) * 100).toFixed(1)}%` : missingText;
     const rangeText = isNx8 ? "Managed" : hasRange ? `${(Number(range.rangeBufferRatio) * 100).toFixed(1)}%` : missingText;
-    const actionText = guardTriggers.length ? String(guardTriggers[0]) : "No action";
+    const actionText = generateRebalanceActionMessage(system, label);
+    const actionChecklistHtml = generateActionChecklist(system, label);
     const scoreText = Number.isFinite(Number(scoreObj?.score0to100)) ? Number(scoreObj.score0to100).toFixed(0) : dash;
     const scoreLabel = String(scoreObj?.label ?? "N/A").toUpperCase();
     const dataBadges = [
@@ -558,6 +648,7 @@ function renderSystemConsoles() {
       range: rangeText,
       basisRisk: reasons.includes("PROXY_HEDGE") ? `<span class="chip">PROXY_HEDGE</span>` : dash,
       action: actionText,
+      actionChecklist: actionChecklistHtml,
       dataFlags: dataBadges.length ? `${dataBadges.join(" ")}${missingWhy}` : dash
     };
   });
@@ -604,9 +695,21 @@ function renderSystemConsoles() {
         <tr><td>Basis Risk</td><td>${sol.basisRisk}</td><td>${nx8.basisRisk}</td></tr>
         <tr><td>Data Flags</td><td>${sol.dataFlags}</td><td>${nx8.dataFlags}</td></tr>
         <tr>
-          <td>Action</td>
-          <td><span class="action-text">${escapeHtml(sol.action)}</span> <a href="#operator" data-open-operator-inline="1">View Operator</a></td>
-          <td><span class="action-text">${escapeHtml(nx8.action)}</span> <a href="#operator" data-open-operator-inline="1">View Operator</a></td>
+          <td style="vertical-align:top;">Action</td>
+          <td>
+            <div style="margin-bottom:8px;">
+              <span class="action-text">${escapeHtml(sol.action)}</span>
+            </div>
+            ${sol.actionChecklist}
+            <a href="#operator" data-open-operator-inline="1" style="margin-top:6px;display:inline-block;">View Operator Details</a>
+          </td>
+          <td>
+            <div style="margin-bottom:8px;">
+              <span class="action-text">${escapeHtml(nx8.action)}</span>
+            </div>
+            ${nx8.actionChecklist}
+            <a href="#operator" data-open-operator-inline="1" style="margin-top:6px;display:inline-block;">View Operator Details</a>
+          </td>
         </tr>
       </tbody>
     </table>
