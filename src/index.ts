@@ -177,6 +177,33 @@ function parseRpcList(envValue: string | undefined, fallback: string[]): string[
   return parseEndpointList(envValue, fallback);
 }
 
+function isRateLimitErrorMessage(message: string): boolean {
+  const m = String(message ?? "").toLowerCase();
+  return m.includes("429") || m.includes("too many requests") || m.includes("8100002");
+}
+
+async function withRateLimitRetry<T>(
+  op: () => Promise<T>,
+  opts?: { attempts?: number; baseDelayMs?: number }
+): Promise<T> {
+  const attempts = Math.max(1, Number(opts?.attempts ?? Number(process.env.ORCA_RPC_RETRY_ATTEMPTS ?? 3)));
+  const baseDelayMs = Math.max(10, Number(opts?.baseDelayMs ?? Number(process.env.ORCA_RPC_RETRY_BASE_MS ?? 250)));
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await op();
+    } catch (err) {
+      lastErr = err;
+      const msg = normalizeErr(err);
+      const shouldRetry = isRateLimitErrorMessage(msg) && attempt < attempts - 1;
+      if (!shouldRetry) throw err;
+      const backoffMs = Math.round(baseDelayMs * 2 ** attempt + Math.random() * 100);
+      await sleep(backoffMs);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "Unknown error"));
+}
+
 async function fetchJson(url: string, headers: Record<string, string> = {}): Promise<unknown> {
   const res = await fetch(url, { headers });
   if (!res.ok) {
@@ -1705,8 +1732,15 @@ async function getOrcaWhirlpoolDetails(
   wallet: string,
   spot: Awaited<ReturnType<typeof getSpotPositions>>
 ): Promise<ProtocolFetchResult> {
-  const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
-  const rpc = createSolanaRpc(rpcUrl);
+  const orcaRpcUrls = parseRpcList(process.env.ORCA_RPC_URLS, [
+    process.env.ORCA_RPC_URL ?? process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
+    "https://api.mainnet-beta.solana.com"
+  ]);
+  const orcaClients = orcaRpcUrls.map((url) => ({
+    url,
+    rpc: createSolanaRpc(url),
+    connection: new Connection(url, "confirmed")
+  }));
   const candidateMints = Array.from(
     new Set(
       spot.splTokens
@@ -1791,7 +1825,25 @@ async function getOrcaWhirlpoolDetails(
 
   const decimalsCache = new Map<string, number | null>();
   const getCachedDecimals = async (mint: string) => {
-    if (!decimalsCache.has(mint)) decimalsCache.set(mint, await getMintDecimals(connection, mint));
+    if (!decimalsCache.has(mint)) {
+      let decimals: number | null = null;
+      for (const client of orcaClients) {
+        try {
+          decimals = await withRateLimitRetry(() => getMintDecimals(client.connection, mint));
+          if (decimals != null) break;
+        } catch {
+          // Try next RPC URL if this one is rate-limited or otherwise unavailable.
+        }
+      }
+      if (decimals == null) {
+        try {
+          decimals = await withRateLimitRetry(() => getMintDecimals(connection, mint));
+        } catch {
+          decimals = null;
+        }
+      }
+      decimalsCache.set(mint, decimals);
+    }
     return decimalsCache.get(mint) ?? null;
   };
 
@@ -1799,11 +1851,39 @@ async function getOrcaWhirlpoolDetails(
     try {
       const pda = await getOrcaPositionAddress(address(mint));
       const positionAddress = Array.isArray(pda) ? String(pda[0]) : String((pda as any).address ?? pda);
-      const positionAcc = (await fetchOrcaMaybePosition(rpc, address(positionAddress))) as any;
+      let positionAcc: any = null;
+      const positionFetchErrors: string[] = [];
+      for (const client of orcaClients) {
+        try {
+          positionAcc = (await withRateLimitRetry(
+            () => fetchOrcaMaybePosition(client.rpc, address(positionAddress))
+          )) as any;
+          break;
+        } catch (err) {
+          positionFetchErrors.push(`${client.url}: ${normalizeErr(err)}`);
+        }
+      }
+      if (positionAcc == null && positionFetchErrors.length > 0) {
+        throw new Error(positionFetchErrors.join(" | "));
+      }
       if (!positionAcc?.exists || !positionAcc?.data) continue;
 
       const whirlpoolAddress = String(positionAcc.data.whirlpool);
-      const whirlpoolAcc = (await fetchOrcaMaybeWhirlpool(rpc, address(whirlpoolAddress))) as any;
+      let whirlpoolAcc: any = null;
+      const whirlpoolFetchErrors: string[] = [];
+      for (const client of orcaClients) {
+        try {
+          whirlpoolAcc = (await withRateLimitRetry(
+            () => fetchOrcaMaybeWhirlpool(client.rpc, address(whirlpoolAddress))
+          )) as any;
+          break;
+        } catch (err) {
+          whirlpoolFetchErrors.push(`${client.url}: ${normalizeErr(err)}`);
+        }
+      }
+      if (whirlpoolAcc == null && whirlpoolFetchErrors.length > 0) {
+        throw new Error(whirlpoolFetchErrors.join(" | "));
+      }
       if (!whirlpoolAcc?.exists || !whirlpoolAcc?.data) {
         errors.push(`whirlpool_not_found:${whirlpoolAddress}`);
         continue;
@@ -1984,7 +2064,7 @@ async function getOrcaWhirlpoolDetails(
   return {
     source: "orcaWhirlpoolsOnchain",
     ok: true,
-    endpointUsed: rpcUrl,
+    endpointUsed: orcaRpcUrls.join(","),
     data: {
       wallet,
       candidateNftCount: candidateMints.length,

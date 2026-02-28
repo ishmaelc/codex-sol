@@ -48,6 +48,7 @@ async function fetchPerpExposureFromApi(wallet: string | null, apiBaseUrl?: stri
     spotWrappedSol: number;
     kaminoSol: number;
     orcaSol: number;
+    summaryResidualOrcaSol: number;
   } | null;
   shortSolQty: number | null;
   shortSolNotionalUsd: number | null;
@@ -105,6 +106,29 @@ async function fetchPerpExposureFromApi(wallet: string | null, apiBaseUrl?: stri
         orcaSolQty += asNumLoose(p?.amountBEstUi) ?? 0;
       }
     }
+    let summaryResidualOrcaSol = 0;
+    if (orcaSolQty <= 0) {
+      try {
+        const summaryRes = await fetch(`${baseUrl.replace(/\/$/, "")}/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`);
+        if (summaryRes.ok) {
+          const summaryJson = (await summaryRes.json()) as Record<string, unknown>;
+          const summarySolSystem = (summaryJson.solSystem as Record<string, unknown> | undefined) ?? {};
+          const summarySnapshot = (summarySolSystem.snapshot as Record<string, unknown> | undefined) ?? {};
+          const summaryExposures = (summarySnapshot.exposures as Record<string, unknown> | undefined) ?? {};
+          const summarySolLong = asNumLoose(summarySolSystem.solLong)
+            ?? asNumLoose(summaryExposures.totalLongSOL);
+          if ((summarySolLong ?? 0) > 0) {
+            const knownNonOrca = nativeSol + spotWrappedSol + kaminoSolQty;
+            summaryResidualOrcaSol = Math.max(0, (summarySolLong ?? 0) - knownNonOrca);
+            if (summaryResidualOrcaSol > 0) {
+              orcaSolQty = summaryResidualOrcaSol;
+            }
+          }
+        }
+      } catch {
+        // Keep best-effort live values from mode=full.
+      }
+    }
     const longSolQty = nativeSol + spotWrappedSol + kaminoSolQty + orcaSolQty;
 
     const jupiterPerps = (json.jupiterPerps as Record<string, unknown> | undefined) ?? {};
@@ -123,7 +147,7 @@ async function fetchPerpExposureFromApi(wallet: string | null, apiBaseUrl?: stri
     if (!solPositions.length) {
       return {
         longSolQty,
-        longSolBreakdown: { nativeSol, spotWrappedSol, kaminoSol: kaminoSolQty, orcaSol: orcaSolQty },
+        longSolBreakdown: { nativeSol, spotWrappedSol, kaminoSol: kaminoSolQty, orcaSol: orcaSolQty, summaryResidualOrcaSol },
         shortSolQty: 0,
         shortSolNotionalUsd: 0,
         leverage: null,
@@ -153,7 +177,7 @@ async function fetchPerpExposureFromApi(wallet: string | null, apiBaseUrl?: stri
 
     return {
       longSolQty,
-      longSolBreakdown: { nativeSol, spotWrappedSol, kaminoSol: kaminoSolQty, orcaSol: orcaSolQty },
+      longSolBreakdown: { nativeSol, spotWrappedSol, kaminoSol: kaminoSolQty, orcaSol: orcaSolQty, summaryResidualOrcaSol },
       shortSolQty,
       shortSolNotionalUsd,
       leverage,
@@ -316,6 +340,7 @@ export async function buildSolSystemSnapshot(context?: { monitorCadenceHours?: n
         longSolSpotWrapped: perp?.longSolBreakdown?.spotWrappedSol ?? null,
         longSolKamino: perp?.longSolBreakdown?.kaminoSol ?? null,
         longSolOrca: perp?.longSolBreakdown?.orcaSol ?? null,
+        longSolOrcaFromSummaryResidual: perp?.longSolBreakdown?.summaryResidualOrcaSol ?? null,
         hedgeScoreInputLeverage: perp?.leverage ?? 3,
         hedgeScoreInputLiqBufferPct: liqBufferPct ?? 0,
         hedgeScoreInputFundingApr: fundingApr,

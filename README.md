@@ -49,6 +49,9 @@ The dashboard calls:
 - `JUPITER_PERPS_ENDPOINTS` is optional legacy fallback only.
 - `HELIUS_RPC_URL` (optional) can be set to a Helius RPC URL for token metadata enrichment (`getAsset`) used to classify unpriced tokens.
 - `ENABLE_TOKEN_METADATA` defaults to `true`; set to `false` to disable metadata lookups.
+- `ORCA_RPC_URL` (optional) overrides RPC used for Orca Whirlpool on-chain position reads.
+- `ORCA_RPC_URLS` (optional) comma-separated Orca RPC failover list; first healthy endpoint is used.
+- `ORCA_RPC_RETRY_ATTEMPTS` / `ORCA_RPC_RETRY_BASE_MS` tune retry backoff for 429 rate-limit responses on Orca on-chain reads.
 
 ## Protocol endpoints used
 
