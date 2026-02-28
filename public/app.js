@@ -51,7 +51,8 @@ let walletDataLoaded = false;
 let selectedOperatorSystemId = "sol_hedged";
 const state = {
   alerts: { data: null, fetchedAt: null, status: "idle", error: null },
-  positionsSummary: { data: null, fetchedAt: null, status: "idle", error: null }
+  positionsSummary: { data: null, fetchedAt: null, status: "idle", error: null },
+  positionsFull: { data: null, fetchedAt: null, status: "idle", error: null }
 };
 
 function loadOperatorModeState() {
@@ -1040,7 +1041,7 @@ function render() {
   if (!(walletDataLoaded || currentMainTab === "wallet") || !state.positionsSummary.data) {
     return;
   }
-  renderWalletInventory(state.positionsSummary.data, null);
+  renderWalletInventory(state.positionsSummary.data, state.positionsFull.data);
 }
 
 function renderWalletInventory(summary, fullPositions) {
@@ -1119,6 +1120,7 @@ function renderWalletInventory(summary, fullPositions) {
 
   const leverageElement = (fullPositions?.jupiterPerps?.data?.raw?.elements ?? []).find((e) => e?.type === "leverage");
   const perpsPositions = leverageElement?.data?.isolated?.positions ?? [];
+  const perpsSummaryCount = Number(summary?.jupiterPerps?.summary?.positionCount ?? 0);
   const perpsRowsHtml = perpsPositions.length
     ? perpsPositions
         .map((p) => {
@@ -1151,7 +1153,9 @@ function renderWalletInventory(summary, fullPositions) {
           `;
         })
         .join("")
-    : `<tr><td colspan="7" class="rewards-empty">No perps positions found.</td></tr>`;
+    : perpsSummaryCount > 0
+      ? `<tr><td colspan="7" class="rewards-empty">Perp rows unavailable (full positions payload missing or degraded).</td></tr>`
+      : `<tr><td colspan="7" class="rewards-empty">No perps positions found.</td></tr>`;
 
   const pureLendObligations = lendObligations.filter((o) => !String(o?.market || "").toLowerCase().includes("multiply"));
   const pureLendValueUsd = pureLendObligations.reduce((acc, o) => acc + Number(o?.netValueUsd || 0), 0);
@@ -1779,9 +1783,14 @@ async function loadPositionsSummaryOnDemand(options = {}) {
   }
   state.positionsSummary.status = "loading";
   state.positionsSummary.error = null;
+  state.positionsFull.status = "loading";
+  state.positionsFull.error = null;
   render();
   try {
-    const summaryRes = await fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`);
+    const [summaryRes, fullRes] = await Promise.all([
+      fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=summary`),
+      fetch(`/api/positions?wallet=${encodeURIComponent(wallet)}&mode=full`)
+    ]);
     if (!summaryRes.ok) {
       const body = await summaryRes.json().catch(() => ({}));
       throw new Error(body.error || `Request failed (${summaryRes.status})`);
@@ -1790,12 +1799,24 @@ async function loadPositionsSummaryOnDemand(options = {}) {
     state.positionsSummary.status = "ok";
     state.positionsSummary.error = null;
     state.positionsSummary.fetchedAt = Date.now();
+    if (fullRes.ok) {
+      state.positionsFull.data = await fullRes.json();
+      state.positionsFull.status = "ok";
+      state.positionsFull.error = null;
+      state.positionsFull.fetchedAt = Date.now();
+    } else {
+      const fullBody = await fullRes.json().catch(() => ({}));
+      state.positionsFull.status = "error";
+      state.positionsFull.error = fullBody.error || `Request failed (${fullRes.status})`;
+    }
     walletDataLoaded = true;
     render();
     if (walletSummaryStatus && !background) walletSummaryStatus.textContent = `Wallet refreshed ${new Date().toLocaleTimeString()}`;
   } catch (err) {
     state.positionsSummary.status = "error";
     state.positionsSummary.error = err instanceof Error ? err.message : String(err);
+    state.positionsFull.status = "error";
+    state.positionsFull.error = state.positionsSummary.error;
     render();
     if (walletSummaryStatus && !background) walletSummaryStatus.textContent = state.positionsSummary.error;
   }
@@ -1814,6 +1835,7 @@ async function loadAlerts() {
   latestWallet = wallet;
   if (walletChanged) {
     state.positionsSummary = { data: null, fetchedAt: null, status: "idle", error: null };
+    state.positionsFull = { data: null, fetchedAt: null, status: "idle", error: null };
     walletDataLoaded = false;
     if (walletSummaryStatus) walletSummaryStatus.textContent = "Idle";
   }
