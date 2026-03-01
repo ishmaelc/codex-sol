@@ -6,13 +6,13 @@
   "totalShort": 0,
   "leverage": 2.5,
   "liqBufferPct": null,
-  "score": 0.6070057142857143,
+  "score": 0.6129207142857143,
   "breakdown": {
     "delta": 1,
     "hedge": 0.3242857142857143,
     "range": 0.1,
-    "stability": 0.9314666666666667,
-    "weighted": 0.6070057142857143,
+    "stability": 0.9709,
+    "weighted": 0.6129207142857143,
     "status": "yellow"
   },
   "riskFlags": [
@@ -22,7 +22,7 @@
   ],
   "canonicalLabel": "YELLOW",
   "canonicalScore": {
-    "score0to1": 0.6070057142857143,
+    "score0to1": 0.6129207142857143,
     "score0to100": 61,
     "label": "YELLOW",
     "reasons": [
@@ -44,7 +44,7 @@
   },
   "canonicalSnapshot": {
     "systemId": "NX8_HEDGED_YIELD",
-    "asOfTs": "2026-02-28T18:31:16.252Z",
+    "asOfTs": "2026-03-01T02:08:30.767Z",
     "pricesUsed": {
       "mark": null,
       "baseAsset": "NX8"
@@ -95,5 +95,5 @@
       "MISSING_WBTC_LIQ_PRICE"
     ]
   },
-  "updatedAt": "2026-02-28T18:31:16.252Z"
+  "updatedAt": "2026-03-01T02:08:30.767Z"
 }

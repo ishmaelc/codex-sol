@@ -1,13 +1,13 @@
 {
-  "updatedAt": "2026-02-28T18:31:16.252Z",
+  "updatedAt": "2026-03-01T02:08:30.766Z",
   "monitorCadenceHours": 24,
   "systems": [
     {
       "id": "sol_hedged",
       "label": "SOL Hedged Yield System",
-      "score": 0.46977943132874533,
+      "score": 0.4756968623705733,
       "status": "orange",
-      "netDelta": -11.244499999999995,
+      "netDelta": -10.3174,
       "leverage": null,
       "liqBufferPct": null,
       "riskFlags": [
@@ -16,10 +16,10 @@
         "DELTA_DRIFT",
         "LOW_LIQ_BUFFER"
       ],
-      "updatedAt": "2026-02-28T18:31:16.251Z",
+      "updatedAt": "2026-03-01T02:08:30.766Z",
       "scoreObj": {
-        "score0to1": 0.46977943132874533,
-        "score0to100": 47,
+        "score0to1": 0.4756968623705733,
+        "score0to100": 48,
         "label": "YELLOW",
         "reasons": [
           "MISSING_DATA",
@@ -47,9 +47,9 @@
       },
       "snapshot": {
         "systemId": "SOL_HEDGED_YIELD",
-        "asOfTs": "2026-02-28T18:31:16.251Z",
+        "asOfTs": "2026-03-01T02:08:30.766Z",
         "pricesUsed": {
-          "mark": 81.25237741,
+          "mark": 88.36447518,
           "baseAsset": "SOL"
         },
         "dataFreshness": {
@@ -58,9 +58,9 @@
           "hasRangeBuffer": true
         },
         "exposures": {
-          "totalLong": 42.1666,
-          "totalShort": 53.4111,
-          "netDelta": -11.244499999999995,
+          "totalLong": 38.6903,
+          "totalShort": 49.0077,
+          "netDelta": -10.3174,
           "hedgeRatio": 1
         },
         "liquidation": {
@@ -69,9 +69,9 @@
           "leverage": null
         },
         "range": {
-          "rangeLower": 66.776154,
-          "rangeUpper": 95.728601,
-          "rangeBufferRatio": 0.1782
+          "rangeLower": 72.318351,
+          "rangeUpper": 104.410599,
+          "rangeBufferRatio": 0.1816
         },
         "basisRisk": {
           "isProxyHedge": false,
@@ -79,12 +79,12 @@
           "reasonTag": null
         },
         "debugMath": {
-          "markPrice": 81.25237741,
+          "markPrice": 88.36447518,
           "liqBufferRatio": null,
-          "rangeBufferRatio": 0.1782,
-          "hedgeRatio": 1.266668405799851,
-          "netDelta": -11.244499999999995,
-          "longSolFromWallet": 42.1666,
+          "rangeBufferRatio": 0.1816,
+          "hedgeRatio": 1.2666663220497127,
+          "netDelta": -10.3174,
+          "longSolFromWallet": 38.6903,
           "longSolNative": null,
           "longSolSpotWrapped": null,
           "longSolKamino": null,
@@ -106,7 +106,7 @@
     {
       "id": "nx8_hedged",
       "label": "NX8 Hedged Yield System",
-      "score": 0.6070057142857143,
+      "score": 0.6129207142857143,
       "status": "yellow",
       "netDelta": 0,
       "leverage": 2.5,
@@ -115,9 +115,9 @@
         "PROXY_HEDGE",
         "MISSING_DATA"
       ],
-      "updatedAt": "2026-02-28T18:31:16.252Z",
+      "updatedAt": "2026-03-01T02:08:30.767Z",
       "scoreObj": {
-        "score0to1": 0.6070057142857143,
+        "score0to1": 0.6129207142857143,
         "score0to100": 61,
         "label": "YELLOW",
         "reasons": [
@@ -151,7 +151,7 @@
       },
       "snapshot": {
         "systemId": "NX8_HEDGED_YIELD",
-        "asOfTs": "2026-02-28T18:31:16.252Z",
+        "asOfTs": "2026-03-01T02:08:30.766Z",
         "pricesUsed": {
           "mark": null,
           "baseAsset": "NX8"

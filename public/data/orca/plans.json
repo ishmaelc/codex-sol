@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-28T18:31:16.240Z",
+  "generatedAt": "2026-03-01T02:08:30.755Z",
   "regime": {
     "label": "MODERATE",
     "fundingAprPct": 3.504
@@ -19,35 +19,35 @@
         "symbol": "USDC",
         "decimals": 6
       },
-      "spotPrice": 81.25237741,
-      "volatilityProxyPctAnnual": 107.06,
+      "spotPrice": 88.36447518,
+      "volatilityProxyPctAnnual": 109.12,
       "regimeWidthMultiplier": 1,
       "presets": [
         {
           "label": "Conservative",
-          "halfWidthPct": 11.88,
-          "lowerPct": -11.88,
-          "upperPct": 11.88,
-          "lowerPrice": 71.601562,
-          "upperPrice": 90.903193,
+          "halfWidthPct": 12.11,
+          "lowerPct": -12.11,
+          "upperPct": 12.11,
+          "lowerPrice": 77.667059,
+          "upperPrice": 99.061891,
           "rationale": "~0.8x weekly sigma proxy from SOL-STABLE volatility, scaled by regime"
         },
         {
           "label": "Base",
-          "halfWidthPct": 17.82,
-          "lowerPct": -17.82,
-          "upperPct": 17.82,
-          "lowerPrice": 66.776154,
-          "upperPrice": 95.728601,
+          "halfWidthPct": 18.16,
+          "lowerPct": -18.16,
+          "upperPct": 18.16,
+          "lowerPrice": 72.318351,
+          "upperPrice": 104.410599,
           "rationale": "~1.2x weekly sigma proxy from SOL-STABLE volatility, scaled by regime"
         },
         {
           "label": "Aggressive",
-          "halfWidthPct": 26.72,
-          "lowerPct": -26.72,
-          "upperPct": 26.72,
-          "lowerPrice": 59.538043,
-          "upperPrice": 102.966712,
+          "halfWidthPct": 27.24,
+          "lowerPct": -27.24,
+          "upperPct": 27.24,
+          "lowerPrice": 64.295289,
+          "upperPrice": 112.433661,
           "rationale": "~1.8x weekly sigma proxy from SOL-STABLE volatility, scaled by regime"
         }
       ],
@@ -55,19 +55,19 @@
       "hedge": {
         "enabled": true,
         "side": "SHORT_SOL",
-        "deltaEstimateSolPer10kUsd": 42.1666,
-        "recommendedShortSolPer10kUsd": 53.4111,
-        "recommendedShortNotionalUsdPer10kUsd": 4339.78,
+        "deltaEstimateSolPer10kUsd": 38.6903,
+        "recommendedShortSolPer10kUsd": 49.0077,
+        "recommendedShortNotionalUsdPer10kUsd": 4330.54,
         "hedgeMultiplier": 0.95,
-        "approxDeltaFraction": 0.3426,
+        "approxDeltaFraction": 0.3419,
         "depositRatioSource": "orca-sdk",
-        "depositRatioRiskAssetUSD": 0.4568,
-        "depositRatioTokenARatioUSD": 0.4568,
-        "depositRatioTokenBRatioUSD": 0.5432,
+        "depositRatioRiskAssetUSD": 0.4558,
+        "depositRatioTokenARatioUSD": 0.4558,
+        "depositRatioTokenBRatioUSD": 0.5442,
         "depositRatioTokenASymbol": "SOL",
         "depositRatioTokenBSymbol": "USDC",
-        "hedgeUSDPer10k": 4339.78,
-        "hedgeSOLPer10k": 53.4111,
+        "hedgeUSDPer10k": 4330.54,
+        "hedgeSOLPer10k": 49.0077,
         "fundingAprPct": 3.504,
         "note": "derived from deposit ratio for planned Base range at current price; hedge normalized per $10k with regime multiplier and SOL short sizing."
       }
